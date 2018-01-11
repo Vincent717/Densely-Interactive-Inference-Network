@@ -182,6 +182,8 @@ pa("--debug", action='store_true', help='debug mode')
 pa("--use_final_state", action='store_true', help='use final states with of the lstm')
 pa("--visualize_dense_attention_logits", action='store_true', help='visualize the attention logits in dense attention')
 
+## mine
+pa("--use_wn", action='store_true', help='use WordNet information to enhance')
 
 
 args = parser.parse_args()

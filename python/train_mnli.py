@@ -113,8 +113,12 @@ class modelClassifier:
         
 
 
-        logger.Log("Building model from %s.py" %(model))
-        self.model = MyModel(self.config, seq_length=self.sequence_length, emb_dim=self.embedding_dim,  hidden_dim=self.dim, embeddings=loaded_embeddings, emb_train=self.emb_train)
+        if config.use_wn:
+            logger.Log("Building the wordnet version model from %s.py" %(model))
+            self.model = MyModelWn(self.config, seq_length=self.sequence_length, emb_dim=self.embedding_dim,  hidden_dim=self.dim, embeddings=loaded_embeddings, emb_train=self.emb_train)
+        else:
+            logger.Log("Building model from %s.py" %(model))
+            self.model = MyModel(self.config, seq_length=self.sequence_length, emb_dim=self.embedding_dim,  hidden_dim=self.dim, embeddings=loaded_embeddings, emb_train=self.emb_train)
 
         self.global_step = self.model.global_step
 
@@ -140,7 +144,7 @@ class modelClassifier:
 
 
 
-    def get_minibatch(self, dataset, start_index, end_index, training=False):
+    def get_minibatch(self, dataset, start_index, end_index, training=False, use_wn=False):
         indices = range(start_index, end_index)
 
         genres = [dataset[i]['genre'] for i in indices]
@@ -165,10 +169,14 @@ class modelClassifier:
         premise_exact_match = np.expand_dims(premise_exact_match, 2)
         hypothesis_exact_match = np.expand_dims(hypothesis_exact_match, 2)
 
+        if use_wn:
+            wordnet_rel = find_wordnet_rel([(dataset[i]['sentence1_binary_parse'][:], dataset[i]['sentence2_binary_parse'][:]) for i in indices])
+        else:
+            wordnet_rel = 1
 
         return premise_vectors, hypothesis_vectors, labels, genres, premise_pos_vectors, \
                 hypothesis_pos_vectors, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match
+                premise_exact_match, hypothesis_exact_match, wordnet_rel
                 
 
 
@@ -241,8 +249,8 @@ class modelClassifier:
                 # Assemble a minibatch of the next B examples
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match  = self.get_minibatch(
-                    training_data, self.batch_size * i, self.batch_size * (i + 1), True)
+                premise_exact_match, hypothesis_exact_match, wordnet_rel = self.get_minibatch(
+                    training_data, self.batch_size * i, self.batch_size * (i + 1), True, self.config.use_wn)
                 
                 # Run the optimizer to take a gradient step, and also fetch the value of the 
                 # cost function for logging
@@ -256,7 +264,8 @@ class modelClassifier:
                                 self.model.premise_char:premise_char_vectors,
                                 self.model.hypothesis_char:hypothesis_char_vectors,
                                 self.model.premise_exact_match:premise_exact_match,
-                                self.model.hypothesis_exact_match: hypothesis_exact_match}
+                                self.model.hypothesis_exact_match: hypothesis_exact_match,
+                                self.model.wordnet_rel: wordnet_rel}
 
                 if self.step % self.display_step == 0:
                     _, c, summary, logits = self.sess.run([self.optimizer, self.model.total_cost, self.model.summary, self.model.logits], feed_dict)

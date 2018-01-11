@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import numpy as np
+
 import re
 import random
 import json
@@ -641,3 +641,70 @@ def save_submission(path, ids, pred_ids):
     f.close()
 
 
+def find_wordnet_rel(word_seqs):  
+    """
+    word_seqs: (batch_size, 2, seq_length)
+    out: (batch_size, seq_len, seq_len, 5)
+    """
+    out = []
+    for seqs in word_seqs:
+        aout = []
+        a, b = seqs
+        for ai in a:
+            ai = ai.lower()
+            bout = []
+            for bi in b:
+                bi = bi.lower()
+                aw = get_synsets(ai)
+                bw = get_synsets(bi)
+                rel = [is_syn(aw, bw), is_ant(aw, bw), is_hypernymy(aw, bw),
+                        is_hyponymy(aw, bw), is_same_hypernym(aw, bw)]
+                bout.append(rel)    
+            # bout.shape: (b_length, 5)
+            aout.append(bout)
+        # aout.shape: (a_length, b_length, 5)
+        out.append(aout)
+    # out.shape: (batch_size, a_length, b_length, 5)
+    return np.array(out)
+
+get_synsets = lambda x: set(wn.synsets(x))
+
+def is_syn(x,y):
+    return 1 if x & y else 0
+
+def is_ant(x, y):
+    for xi in x:
+        for li in xi.lemmas():
+            ants = [la.synset() for la in li.antonyms()]
+            if set(ants) & y:
+                return 1
+    return 0
+
+def is_hypernymy(x, y, n_type='avg'):
+    diss = []
+    for xi in x:
+        xi_hyp_set = xi.hypernym_distances()
+        for xih, dis in xi_hyp_set:
+            if xih in y:
+                diss.append(dis)
+    if not diss:
+        return 0
+    else:
+        if n_type == 'max':
+            n = float(max(diss))
+        elif n_type == 'min':
+            n = float(min(diss))
+        else:
+            n = float(sum(diss)/len(diss))
+        return 1 - n/8
+
+def is_hyponymy(x, y, n_type='avg'):
+    return is_hypernymy(y, x, n_type)
+
+def is_same_hypernym(x, y):
+    xh, yh = set(), set()
+    for xi in x:
+        xh.update(xi.hypernyms())
+    for yi in y:
+        yh.update(yi.hypernyms())
+    return 1 if (is_syn(x,y)==0 and xh&yh) else 0
