@@ -641,11 +641,45 @@ def save_submission(path, ids, pred_ids):
     f.close()
 
 
+def save_wordnet_rel(datasets, i2w):  
+    """
+    word_seqs: (batch_size, 2, seq_length)
+    out: (batch_size, seq_len, seq_len, 5)
+    """
+
+    mgr = multiprocessing.Manager()
+    shared_content = mgr.dict()
+    process_num = config.num_process_prepro
+    process_num = 8
+    for i, dataset in enumerate(datasets):
+        num_per_share = len(dataset) / process_num + 1
+        jobs = [ multiprocessing.Process(target=find_wordnet_rel_worker, args=(shared_content, dataset[i * num_per_share : (i + 1) * num_per_share], i2w )) for i in range(process_num)]
+        for j in jobs:
+            j.start()
+        for j in jobs:
+            j.join()
+
+def get_word_sequence(i2w, idxs):
+    return [i2w.get(i, '') for i in idxs]
+
+
+def find_wordnet_rel_worker(shard_content, dataset, i2w):
+    out = []
+    for example in tqdm(dataset):
+        aout = []
+        a = get_word_sequence(i2w, example['sentence1_binary_parse_index_sequence'][:])
+        b = get_word_sequence(i2w, example['sentence2_binary_parse_index_sequence'][:])
+        pairid = example['pairID']
+        rels = find_wordnet_rel((a,b))
+        shared_content[pairid] = rels
+
 def find_wordnet_rel(word_seqs):  
     """
     word_seqs: (batch_size, 2, seq_length)
     out: (batch_size, seq_len, seq_len, 5)
     """
+    if wn_rel_content:
+
     out = []
     for seqs in word_seqs:
         aout = []
@@ -671,7 +705,8 @@ def find_wordnet_rel(word_seqs):
         # aout.shape: (a_length, b_length, 5)
         out.append(aout)
     # out.shape: (batch_size, a_length, b_length, 5)
-    return np.array(out)
+    return out
+    #return np.array(out)
 
 get_synsets = lambda x: set(wn.synsets(x))
 
