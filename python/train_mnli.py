@@ -35,6 +35,7 @@ model = FIXED_PARAMETERS["model_type"]
 
 module = importlib.import_module(".".join(['models', model])) 
 MyModel = getattr(module, 'MyModel')
+MyModelWn = getattr(module, 'MyModelWn')
 
 # Logging parameter settings at each launch of training script
 # This will help ensure nothing goes awry in reloading a model and we consistenyl use the same hyperparameter settings. 
@@ -141,8 +142,12 @@ class modelClassifier:
         self.saver = tf.train.Saver()
 
 
+    def tokenize(self, s):
+        s = re.sub(r'\(|\)', '', s)
+        return s.split()
 
-
+    def get_word_sequence(self, idxs):
+        return [indices_to_words.get(i, '') for i in idxs]
 
     def get_minibatch(self, dataset, start_index, end_index, training=False, use_wn=False):
         indices = range(start_index, end_index)
@@ -170,7 +175,9 @@ class modelClassifier:
         hypothesis_exact_match = np.expand_dims(hypothesis_exact_match, 2)
 
         if use_wn:
-            wordnet_rel = find_wordnet_rel([(dataset[i]['sentence1_binary_parse'][:], dataset[i]['sentence2_binary_parse'][:]) for i in indices])
+            wordnet_rel = find_wordnet_rel([(self.get_word_sequence(dataset[i]['sentence1_binary_parse_index_sequence'][:]), 
+                                             self.get_word_sequence(dataset[i]['sentence2_binary_parse_index_sequence'][:])) 
+                                             for i in indices])
         else:
             wordnet_rel = 1
 
@@ -399,13 +406,13 @@ class modelClassifier:
             if i != total_batch:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match  = self.get_minibatch(
-                    examples, self.batch_size * i, self.batch_size * (i + 1))
+                premise_exact_match, hypothesis_exact_match, wordnet_rel  = self.get_minibatch(
+                    examples, self.batch_size * i, self.batch_size * (i + 1), training=False, use_wn=self.config.use_wn)
             else:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match = self.get_minibatch(
-                    examples, self.batch_size * i, len(examples))
+                premise_exact_match, hypothesis_exact_match, wordnet_rel = self.get_minibatch(
+                    examples, self.batch_size * i, len(examples), training=False, use_wn=self.config.use_wn)
             feed_dict = {self.model.premise_x: minibatch_premise_vectors, 
                                 self.model.hypothesis_x: minibatch_hypothesis_vectors,
                                 self.model.y: minibatch_labels, 
@@ -416,7 +423,8 @@ class modelClassifier:
                                 self.model.premise_char:premise_char_vectors,
                                 self.model.hypothesis_char:hypothesis_char_vectors,
                                 self.model.premise_exact_match:premise_exact_match,
-                                self.model.hypothesis_exact_match: hypothesis_exact_match}
+                                self.model.hypothesis_exact_match: hypothesis_exact_match,
+				self.model.wordnet_rel: wordnet_rel}
             genres += minibatch_genres
             logit, cost = self.sess.run([self.model.logits, self.model.total_cost], feed_dict)
             costs += cost
@@ -461,13 +469,13 @@ class modelClassifier:
             if i != total_batch:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match = self.get_minibatch(
-                    examples, self.batch_size * i, self.batch_size * (i + 1))
+                premise_exact_match, hypothesis_exact_match, wordnet_rel = self.get_minibatch(
+                    examples, self.batch_size * i, self.batch_size * (i + 1), training=False, use_wn=self.config.use_wn)
             else:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match = self.get_minibatch(
-                    examples, self.batch_size * i, len(examples))
+                premise_exact_match, hypothesis_exact_match, wordnet_rel = self.get_minibatch(
+                    examples, self.batch_size * i, len(examples), training=False, use_wn=self.config.use_wn)
             feed_dict = {self.model.premise_x: minibatch_premise_vectors, 
                                 self.model.hypothesis_x: minibatch_hypothesis_vectors,
                                 self.model.y: minibatch_labels, 
@@ -478,7 +486,8 @@ class modelClassifier:
                                 self.model.premise_char:premise_char_vectors,
                                 self.model.hypothesis_char:hypothesis_char_vectors,
                                 self.model.premise_exact_match:premise_exact_match,
-                                self.model.hypothesis_exact_match: hypothesis_exact_match}
+                                self.model.hypothesis_exact_match: hypothesis_exact_match,
+				self.model.wordnet_rel: wordnet_rel}
             logit = self.sess.run(self.model.logits, feed_dict)
             IDs = np.concatenate([IDs, pairIDs])
             logits = np.vstack([logits, logit])

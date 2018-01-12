@@ -651,15 +651,21 @@ def find_wordnet_rel(word_seqs):
         aout = []
         a, b = seqs
         for ai in a:
-            ai = ai.lower()
-            bout = []
-            for bi in b:
-                bi = bi.lower()
-                aw = get_synsets(ai)
-                bw = get_synsets(bi)
-                rel = [is_syn(aw, bw), is_ant(aw, bw), is_hypernymy(aw, bw),
-                        is_hyponymy(aw, bw), is_same_hypernym(aw, bw)]
-                bout.append(rel)    
+            if ai == PADDING:
+                 bout = [[0,0,0,0,0] for _ in range(len(b))]
+            else:
+                ai = ai.lower()
+                bout = []
+                for bi in b:
+                    if bi == PADDING:
+                        rel = [0,0,0,0,0]
+                    else:
+                        bi = bi.lower()
+                        aw = get_synsets(ai)
+                        bw = get_synsets(bi)
+                        rel = [is_syn(aw, bw), is_ant(aw, bw), is_hypernymy(aw, bw),
+                                is_hyponymy(aw, bw), is_same_hypernym(aw, bw)]
+                    bout.append(rel)    
             # bout.shape: (b_length, 5)
             aout.append(bout)
         # aout.shape: (a_length, b_length, 5)

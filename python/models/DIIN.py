@@ -240,7 +240,7 @@ class MyModelWn(object):
         self.hypothesis_char = tf.placeholder(tf.int32, [None, self.sequence_length, config.char_in_word_size], name='hypothesis_char')
         self.premise_exact_match = tf.placeholder(tf.int32, [None, self.sequence_length,1], name='premise_exact_match')
         self.hypothesis_exact_match = tf.placeholder(tf.int32, [None, self.sequence_length,1], name='hypothesis_exact_match')
-        self.wordnet_rel = tf.placeholder(tf.int32, [None, self.sequence_length, self.sequence_length, 5], name='wordnet_rel')
+        self.wordnet_rel = tf.placeholder(tf.float32, [None, self.sequence_length, self.sequence_length, 5], name='wordnet_rel')
         
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         
@@ -452,7 +452,7 @@ def bi_attention_mx(config, is_train, p, h, p_mask=None, h_mask=None, scope=None
 
         
         h_logits = p_aug * h_aug  # [N, PL, HL, 2d]
-        if wn_rel:
+        if wn_rel is not None:
             h_logits = tf.concat([h_logits, wn_rel], -1)   # [N, PL, HL, 2d+5]
         return h_logits
 
