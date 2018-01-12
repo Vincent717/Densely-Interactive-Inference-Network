@@ -68,6 +68,9 @@ else:
 
     shared_content = load_mnli_shared_content()
 
+    #if config.use_wn:
+    #    wn_rel_content = load_mnli_wn_rel_content()
+
     logger.Log("Loading embeddings")
     indices_to_words, word_indices, char_indices, indices_to_chars = sentences_to_padded_index_sequences([training_mnli, training_snli, dev_matched, dev_mismatched, test_matched, test_mismatched, dev_snli, test_snli])
 
@@ -175,10 +178,10 @@ class modelClassifier:
         hypothesis_exact_match = np.expand_dims(hypothesis_exact_match, 2)
 
         if use_wn:
-            if wn_rel_content:
-                wordnet_rel = np.array([wn_rel_content[pairIDs[i]] for i in range(len(indices))])
-            else:
-                wordnet_rel = np.array(find_wordnet_rel([(self.get_word_sequence(dataset[i]['sentence1_binary_parse_index_sequence'][:]), 
+            #if wn_rel_content:
+            #    wordnet_rel = np.array([wn_rel_content[pairIDs[i]] for i in range(len(indices))])
+            #else:
+            wordnet_rel = np.array(find_wordnet_rel([(self.get_word_sequence(dataset[i]['sentence1_binary_parse_index_sequence'][:]), 
                                              self.get_word_sequence(dataset[i]['sentence2_binary_parse_index_sequence'][:])) 
                                              for i in indices]))
         else:
@@ -274,8 +277,10 @@ class modelClassifier:
                                 self.model.premise_char:premise_char_vectors,
                                 self.model.hypothesis_char:hypothesis_char_vectors,
                                 self.model.premise_exact_match:premise_exact_match,
-                                self.model.hypothesis_exact_match: hypothesis_exact_match,
-                                self.model.wordnet_rel: wordnet_rel}
+                                self.model.hypothesis_exact_match: hypothesis_exact_match}
+
+                if self.config.use_wn:
+                    feed_dict[self.model.wordnet_rel] = wordnet_rel
 
                 if self.step % self.display_step == 0:
                     _, c, summary, logits = self.sess.run([self.optimizer, self.model.total_cost, self.model.summary, self.model.logits], feed_dict)
@@ -426,8 +431,10 @@ class modelClassifier:
                                 self.model.premise_char:premise_char_vectors,
                                 self.model.hypothesis_char:hypothesis_char_vectors,
                                 self.model.premise_exact_match:premise_exact_match,
-                                self.model.hypothesis_exact_match: hypothesis_exact_match,
-				self.model.wordnet_rel: wordnet_rel}
+                                self.model.hypothesis_exact_match: hypothesis_exact_match}
+            if self.config.use_wn:
+                feed_dict[self.model.wordnet_rel] = wordnet_rel	
+
             genres += minibatch_genres
             logit, cost = self.sess.run([self.model.logits, self.model.total_cost], feed_dict)
             costs += cost
@@ -489,8 +496,10 @@ class modelClassifier:
                                 self.model.premise_char:premise_char_vectors,
                                 self.model.hypothesis_char:hypothesis_char_vectors,
                                 self.model.premise_exact_match:premise_exact_match,
-                                self.model.hypothesis_exact_match: hypothesis_exact_match,
-				self.model.wordnet_rel: wordnet_rel}
+                                self.model.hypothesis_exact_match: hypothesis_exact_match}
+            if self.config.use_wn:
+                feed_dict[self.model.wordnet_rel] = wordnet_rel
+
             logit = self.sess.run(self.model.logits, feed_dict)
             IDs = np.concatenate([IDs, pairIDs])
             logits = np.vstack([logits, logit])

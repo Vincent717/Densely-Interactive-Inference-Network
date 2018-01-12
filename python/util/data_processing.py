@@ -6,6 +6,7 @@ import json
 import collections
 import numpy as np
 import util.parameters as params
+#import parameters as params
 from tqdm import tqdm
 import nltk
 from nltk.corpus import wordnet as wn 
@@ -14,6 +15,11 @@ import pickle
 import multiprocessing
 from nltk.tag import StanfordNERTagger
 from nltk.tag import StanfordPOSTagger
+from scipy import sparse
+import pickle
+import gc 
+from util.sparray import Sparray3D
+
 
 FIXED_PARAMETERS, config = params.load_parameters()
 
@@ -181,6 +187,28 @@ def load_mnli_shared_content():
         # shared_content = json.load(f)
     return shared_content
 
+def load_mnli_wn_rel_content():
+    shared_file_exist = False
+    # shared_path = config.datapath + "/shared_2D_EM.json"
+    # shared_path = config.datapath + "/shared_anto.json"
+    # shared_path = config.datapath + "/shared_NER.json"
+    shared_path = config.datapath + "/wn_rel_shared.jsonl"
+    # shared_path = "../shared.json"
+    print(shared_path)
+    if os.path.isfile(shared_path):
+        shared_file_exist = True
+    # shared_content = {}
+    assert shared_file_exist
+    # if not shared_file_exist and config.use_exact_match_feature:
+    #     with open(shared_path, 'w') as f:
+    #         json.dump(dict(reconvert_shared_content), f)
+    # elif config.use_exact_match_feature:
+    with open(shared_path) as f:
+        shared_content = {}
+        load_shared_content(f, shared_content)
+        # shared_content = json.load(f)
+    return shared_content
+
 def sentences_to_padded_index_sequences(datasets):
     """
     Annotate datasets with feature vectors. Adding right-sided padding. 
@@ -189,9 +217,6 @@ def sentences_to_padded_index_sequences(datasets):
     def tokenize(string):
         string = re.sub(r'\(|\)', '', string)
         return string.split()
-
-    
-    
 
     word_counter = collections.Counter()
     char_counter = collections.Counter()
@@ -221,11 +246,6 @@ def sentences_to_padded_index_sequences(datasets):
                 char_counter.update([c for c in word])
 
         # shared_content = {k:v for k, v in shared_content.items()}
-
-
-
-    
-
 
     vocabulary = set([word for word in word_counter])
     vocabulary = list(vocabulary)
@@ -641,7 +661,7 @@ def save_submission(path, ids, pred_ids):
     f.close()
 
 
-def save_wordnet_rel(datasets, i2w):  
+def save_wordnet_rel(datasets):  
     """
     word_seqs: (batch_size, 2, seq_length)
     out: (batch_size, seq_len, seq_len, 5)
@@ -650,35 +670,81 @@ def save_wordnet_rel(datasets, i2w):
     mgr = multiprocessing.Manager()
     shared_content = mgr.dict()
     process_num = config.num_process_prepro
-    process_num = 8
+    process_num = 12
     for i, dataset in enumerate(datasets):
-        num_per_share = len(dataset) / process_num + 1
-        jobs = [ multiprocessing.Process(target=find_wordnet_rel_worker, args=(shared_content, dataset[i * num_per_share : (i + 1) * num_per_share], i2w )) for i in range(process_num)]
+        num_per_share = int(len(dataset) / process_num + 1)
+        jobs = [ multiprocessing.Process(target=find_wordnet_rel_worker1, args=(shared_content, dataset[i * num_per_share : (i + 1) * num_per_share] )) for i in range(process_num)]
         for j in jobs:
             j.start()
         for j in jobs:
             j.join()
+    with open('wn_rel_shared.pkl', 'wb') as f:
+        # for k, v in dict(shared_content).items():
+        #     line = '%s\t%s\n' %(k, v)
+        #     f.write(line)
+        f.write(pickle.dumps(dict(shared_content)))
+        #f.write(json.dumps(dict(shared_content)))
+
 
 def get_word_sequence(i2w, idxs):
     return [i2w.get(i, '') for i in idxs]
 
+def restrict_len_tokenize(string):
+    string = re.sub(r'\(|\)', '', string)
+    out = string.split()
+    if len(out) > FIXED_PARAMETERS["seq_length"]:
+        return out[:FIXED_PARAMETERS["seq_length"]]
+    else:
+        out = out + [PADDING] * (FIXED_PARAMETERS["seq_length"] - len(out))
+        return out
 
-def find_wordnet_rel_worker(shard_content, dataset, i2w):
+def find_wordnet_rel_worker1(shared_content, dataset):
     out = []
     for example in tqdm(dataset):
         aout = []
-        a = get_word_sequence(i2w, example['sentence1_binary_parse_index_sequence'][:])
-        b = get_word_sequence(i2w, example['sentence2_binary_parse_index_sequence'][:])
+        a = restrict_len_tokenize(example['sentence1_binary_parse'])
+        b = restrict_len_tokenize(example['sentence2_binary_parse'])
         pairid = example['pairID']
-        rels = find_wordnet_rel((a,b))
-        shared_content[pairid] = rels
+        rels = find_wordnet_rel([(a,b)])[0]
+        #sparse_rel = sparse.lil_matrix(rels)
+        sparse_rel = Sparray3D(rels)
+        shared_content[pairid] = sparse_rel
+        del rels
+        del sparse_rel
+        gc.collect()
+
+def find_wordnet_rel_mp(word_seqs):  
+    """
+    multiprocessing version
+    word_seqs: (batch_size, 2, seq_length)
+    out: (batch_size, seq_len, seq_len, 5)
+    """
+    #if wn_rel_content:
+    mgr = multiprocessing.Manager()
+    shared_content = mgr.dict()
+    process_num = config.num_process_prepro
+    #process_num = 8
+    num_per_share = int(len(word_seqs) / process_num + 1)
+    jobs = [ multiprocessing.Process(target=find_wordnet_rel_worker, args=(word_seqs[i * num_per_share : (i + 1) * num_per_share], shared_content, i*num_per_share )) for i in range(process_num)]
+    for j in jobs:
+        j.start()
+    for j in jobs:
+        j.join()
+    keys = shared_content.keys() 
+    keys.sort() 
+    return list(map(shared_content.get, keys)) 
+
+def find_wordnet_rel_worker(word_seqs, shared_content, index=0):
+    for seq in word_seqs:
+        shared_content[index] = find_wordnet_rel([seq])[0]
+        index += 1
 
 def find_wordnet_rel(word_seqs):  
     """
     word_seqs: (batch_size, 2, seq_length)
     out: (batch_size, seq_len, seq_len, 5)
     """
-    if wn_rel_content:
+    #if wn_rel_content:
 
     out = []
     for seqs in word_seqs:
@@ -689,12 +755,16 @@ def find_wordnet_rel(word_seqs):
                  bout = [[0,0,0,0,0] for _ in range(len(b))]
             else:
                 ai = ai.lower()
+                if ai == "n't":
+                    ai = 'not'
                 bout = []
                 for bi in b:
                     if bi == PADDING:
                         rel = [0,0,0,0,0]
                     else:
                         bi = bi.lower()
+                        if bi == "n't":
+                            bi == 'not'
                         aw = get_synsets(ai)
                         bw = get_synsets(bi)
                         rel = [is_syn(aw, bw), is_ant(aw, bw), is_hypernymy(aw, bw),
@@ -749,3 +819,28 @@ def is_same_hypernym(x, y):
     for yi in y:
         yh.update(yi.hypernyms())
     return 1 if (is_syn(x,y)==0 and xh&yh) else 0
+
+
+
+
+if __name__ == '__main__':
+
+    test = [(['A','person','on','a','horse','jumps','over','a','broken','down','airplane','.'],
+             ['A', 'person', 'is', 'training', 'his', 'horse', 'for', 'a','competition','.']
+             ),
+            (['A','person','on','a','horse','jumps','over','a','broken','down','airplane','.'],
+             ['A', 'person', 'is', 'at', 'a', 'diner', ',', 'ordering', 'an', 'omelette','.']
+             ),
+            (['I', 'was', 'on', 'this', 'earth', 'you', 'know', ',', 'I', "'ve", 'lived', 'on', 'this', 'earth', 'for', 'some', 'reason', ',', 'I', 'just', 'do', "n't", 'know', 'what', 'it', 'is', 'yet', '.'],
+              ['I', 'do', "n't", 'yet', 'know', 'the', 'reason', 'why', 'I', 'have', 'lived', 'on', 'earth', '.'] )
+            ]
+    test = test * 24
+    x = find_wordnet_rel(test)
+    y = find_wordnet_rel_mp(test)
+    print(len(x), len(y))
+    if x == y:
+        print('equal!')
+    else:
+        print('not equal')
+        print(x, 888)
+        print(y)

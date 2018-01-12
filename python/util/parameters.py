@@ -50,7 +50,7 @@ pa("--alpha", type=float, default=0.15, help="What percentage of SNLI data to us
 
 pa("--test", action='store_true', help="Call if you want to only test on the best checkpoint.")
 pa("--preprocess_data_only", action='store_true', help='preprocess_data_only')
-pa("--num_process_prepro", type=int, default=24, help='num process prepro')
+pa("--num_process_prepro", type=int, default=2, help='num process prepro')
 
 pa("--logit_func", type=str, default="tri_linear", help='logit function')
 pa("--dense_att_logit_func", type=str, default="tri_linear", help='logit function on dense attention')
