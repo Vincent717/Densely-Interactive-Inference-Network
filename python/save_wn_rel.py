@@ -20,7 +20,11 @@ if True:
     #indices_to_words, word_indices, char_indices, indices_to_chars = sentences_to_padded_index_sequences([dev_snli, dev_matched])
     #indices_to_words, word_indices, char_indices, indices_to_chars = sentences_to_padded_index_sequences([training_mnli, training_snli, dev_matched, dev_mismatched, test_matched, test_mismatched, dev_snli, test_snli])
 
-    print('start saving wn rel')
-    #save_wordnet_rel([dev_snli, dev_matched], indices_to_words)
-    save_wordnet_rel([training_mnli, training_snli, dev_matched, dev_mismatched, test_matched, test_mismatched, dev_snli, test_snli])
-    print('finish saving wn rel')
+    # print('start saving wn rel')
+    # #save_wordnet_rel([dev_snli, dev_matched], indices_to_words)
+    # save_wordnet_rel([training_mnli, training_snli, dev_matched, dev_mismatched, test_matched, test_mismatched, dev_snli, test_snli])
+    # print('finish saving wn rel')
+
+    print('start fixing wn rel')
+    #fix_wordnet_rel([dev_snli, dev_matched])
+    fix_wordnet_rel([training_mnli, training_snli, dev_matched, dev_mismatched, test_matched, test_mismatched, dev_snli, test_snli])

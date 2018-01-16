@@ -18,6 +18,7 @@ from nltk.tag import StanfordPOSTagger
 from scipy import sparse
 import pickle
 import gc 
+#from sparray import Sparray3D
 from util.sparray import Sparray3D
 
 
@@ -189,24 +190,13 @@ def load_mnli_shared_content():
 
 def load_mnli_wn_rel_content():
     shared_file_exist = False
-    # shared_path = config.datapath + "/shared_2D_EM.json"
-    # shared_path = config.datapath + "/shared_anto.json"
-    # shared_path = config.datapath + "/shared_NER.json"
-    shared_path = config.datapath + "/wn_rel_shared.jsonl"
-    # shared_path = "../shared.json"
+    shared_path = config.datapath + "/wn_rel_shared.pkl"
     print(shared_path)
     if os.path.isfile(shared_path):
         shared_file_exist = True
-    # shared_content = {}
     assert shared_file_exist
-    # if not shared_file_exist and config.use_exact_match_feature:
-    #     with open(shared_path, 'w') as f:
-    #         json.dump(dict(reconvert_shared_content), f)
-    # elif config.use_exact_match_feature:
-    with open(shared_path) as f:
-        shared_content = {}
-        load_shared_content(f, shared_content)
-        # shared_content = json.load(f)
+    with open(shared_path, 'rb') as f:
+        shared_content = pickle.loads(f.read())
     return shared_content
 
 def sentences_to_padded_index_sequences(datasets):
@@ -686,6 +676,73 @@ def save_wordnet_rel(datasets):
         #f.write(json.dumps(dict(shared_content)))
 
 
+def fix_wordnet_rel(datasets):  
+    """
+    word_seqs: (batch_size, 2, seq_length)
+    out: (batch_size, seq_len, seq_len, 5)
+    """
+
+    mgr = multiprocessing.Manager()
+    shared_content = mgr.dict()
+    process_num = config.num_process_prepro
+    process_num = 4
+    with open('../data/wn_rel_shared.pkl', 'rb') as f:
+        wn_rel = pickle.loads(f.read())
+    shared_content.update(wn_rel)
+    del wn_rel
+    for i, dataset in enumerate(datasets):
+        num_per_share = int(len(dataset) / process_num + 1)
+        jobs = [ multiprocessing.Process(target=fix_wordnet_rel_worker, args=(shared_content, dataset[i * num_per_share : (i + 1) * num_per_share] )) for i in range(process_num)]
+        for j in jobs:
+            j.start()
+        for j in jobs:
+            j.join()
+    with open('../data/wn_rel_shared_with_same.pkl', 'wb') as f:
+        # for k, v in dict(shared_content).items():
+        #     line = '%s\t%s\n' %(k, v)
+        #     f.write(line)
+        f.write(pickle.dumps(dict(shared_content)))
+        #f.write(json.dumps(dict(shared_content)))
+
+
+def fix_wordnet_rel_worker(shared_content, dataset):
+    for example in tqdm(dataset):
+        aout = []
+        a = restrict_len_tokenize(example['sentence1_binary_parse'])
+        b = restrict_len_tokenize(example['sentence2_binary_parse'])
+        pairid = example['pairID']
+        exact_match_dict = find_exact_match(a, b)
+        for k, v in exact_match_dict.items():
+            shared_content[pairid].__setitem__(k, v)
+
+def find_exact_match(a, b):
+    def pretty_word(x):
+        x = x.lower()
+        if x == "n't":
+            return 'not'
+        # elif x == "'s":
+        #     return 'is'
+        # elif x == "'ve":
+        #     return 'have'
+        else:
+            return x
+    out = {}
+    for i, ai in enumerate(a):
+        if ai == PADDING:
+             return out
+        else:
+            ai = pretty_word(ai)
+            for j, bi in enumerate(b):
+                if bi == PADDING:
+                    break
+                else:
+                    bi = pretty_word(bi)
+                    if ai == bi:
+                        out[(i,j,0)] = 1
+                    else:
+                        continue
+    return out
+
 def get_word_sequence(i2w, idxs):
     return [i2w.get(i, '') for i in idxs]
 
@@ -745,6 +802,16 @@ def find_wordnet_rel(word_seqs):
     out: (batch_size, seq_len, seq_len, 5)
     """
     #if wn_rel_content:
+    def pretty_word(x):
+        x = x.lower()
+        if x == "n't":
+            return 'not'
+        # elif x == "'s":
+        #     return 'is'
+        # elif x == "'ve":
+        #     return 'have'
+        else:
+            return x
 
     out = []
     for seqs in word_seqs:
@@ -754,20 +821,20 @@ def find_wordnet_rel(word_seqs):
             if ai == PADDING:
                  bout = [[0,0,0,0,0] for _ in range(len(b))]
             else:
-                ai = ai.lower()
-                if ai == "n't":
-                    ai = 'not'
+                ai = pretty_word(ai)
                 bout = []
                 for bi in b:
                     if bi == PADDING:
                         rel = [0,0,0,0,0]
                     else:
-                        bi = bi.lower()
-                        if bi == "n't":
-                            bi == 'not'
+                        bi = pretty_word(bi)
                         aw = get_synsets(ai)
                         bw = get_synsets(bi)
-                        rel = [is_syn(aw, bw), is_ant(aw, bw), is_hypernymy(aw, bw),
+                        if ai == bi:
+                            rel = [1, is_ant(aw, bw), is_hypernymy(aw, bw),
+                                is_hyponymy(aw, bw), is_same_hypernym(aw, bw)]
+                        else:
+                            rel = [is_syn(aw, bw), is_ant(aw, bw), is_hypernymy(aw, bw),
                                 is_hyponymy(aw, bw), is_same_hypernym(aw, bw)]
                     bout.append(rel)    
             # bout.shape: (b_length, 5)
@@ -807,7 +874,7 @@ def is_hypernymy(x, y, n_type='avg'):
             n = float(min(diss))
         else:
             n = float(sum(diss)/len(diss))
-        return 1 - n/8
+        return round(1 - n/8, 3)
 
 def is_hyponymy(x, y, n_type='avg'):
     return is_hypernymy(y, x, n_type)
@@ -825,22 +892,34 @@ def is_same_hypernym(x, y):
 
 if __name__ == '__main__':
 
-    test = [(['A','person','on','a','horse','jumps','over','a','broken','down','airplane','.'],
-             ['A', 'person', 'is', 'training', 'his', 'horse', 'for', 'a','competition','.']
-             ),
-            (['A','person','on','a','horse','jumps','over','a','broken','down','airplane','.'],
-             ['A', 'person', 'is', 'at', 'a', 'diner', ',', 'ordering', 'an', 'omelette','.']
-             ),
-            (['I', 'was', 'on', 'this', 'earth', 'you', 'know', ',', 'I', "'ve", 'lived', 'on', 'this', 'earth', 'for', 'some', 'reason', ',', 'I', 'just', 'do', "n't", 'know', 'what', 'it', 'is', 'yet', '.'],
-              ['I', 'do', "n't", 'yet', 'know', 'the', 'reason', 'why', 'I', 'have', 'lived', 'on', 'earth', '.'] )
-            ]
-    test = test * 24
-    x = find_wordnet_rel(test)
-    y = find_wordnet_rel_mp(test)
-    print(len(x), len(y))
-    if x == y:
-        print('equal!')
-    else:
-        print('not equal')
-        print(x, 888)
-        print(y)
+    # test = [(['A','person','on','a','horse','jumps','over','a','broken','down','airplane','.'],
+    #          ['A', 'person', 'is', 'training', 'his', 'horse', 'for', 'a','competition','.']
+    #          ),
+    #         (['A','person','on','a','horse','jumps','over','a','broken','down','airplane','.'],
+    #          ['A', 'person', 'is', 'at', 'a', 'diner', ',', 'ordering', 'an', 'omelette','.']
+    #          ),
+    #         (['I', 'was', 'on', 'this', 'earth', 'you', 'know', ',', 'I', "'ve", 'lived', 'on', 'this', 'earth', 'for', 'some', 'reason', ',', 'I', 'just', 'do', "n't", 'know', 'what', 'it', 'is', 'yet', '.'],
+    #           ['I', 'do', "n't", 'yet', 'know', 'the', 'reason', 'why', 'I', 'have', 'lived', 'on', 'earth', '.'] )
+    #         ]
+    # test = test * 24
+    def pad_tokenize(string):
+        string = re.sub(r'\(|\)', '', string)
+        string = string.split()[:48]
+        string = string + [PADDING] * (48 - len(string))
+        return string
+    s1 = "( ( ( ( ( ( ( ( Placido ( Domingo 's ) ) appearance ) ( on ( the package ) ) ) , ) ( compellingly ( ( photographed ( in costume ) ) ( as ( ( the ( ancient King ) ) ( of Crete ) ) ) ) ) ) , ) ( -LRB- ( ( ( ( Anthony Tommasini ) , ) ( the ( New ( York Times ) ) ) ) -RRB- ) ) ) ( ( is ( ( ( ( ( ( the ( main ( selling point ) ) ) ( for ( this ( new recording ) ) ) ) ( of one ) ) ( of ( ( Mozart 's ) ( ( more obscure ) operas ) ) ) ) -- ) ( ( a fact ) ( that ( ( does not ) ( make ( critics happy ) ) ) ) ) ) ) . ) )"
+    s2 = "( ( ( The ( attracting feature ) ) ( of ( the ( new ( Mozart recording ) ) ) ) ) ( ( is ( ( Placido ( Domingo 's ) ) appearance ) ) . ) )"
+    test = [(pad_tokenize(s1), pad_tokenize(s2))]
+    print(test)
+    #x = Sparray3D(find_wordnet_rel(test)[0])
+    # for i in x.get_data().items():
+    #     print(i)
+    print(find_exact_match(pad_tokenize(s1), pad_tokenize(s2)))
+    #y = find_wordnet_rel_mp(test)
+    # print(len(x), len(y))
+    # if x == y:
+    #     print('equal!')
+    # else:
+    #     print('not equal')
+    #     print(x, 888)
+    #     print(y)

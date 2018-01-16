@@ -1,6 +1,8 @@
 from util.data_processing import LABEL_MAP
 import util.parameters as params
 FIXED_PARAMETERS, config = params.load_parameters()
+import os
+import pickle
 
 # LABEL_MAP = {
 #     "entailment": 0,
@@ -10,7 +12,7 @@ FIXED_PARAMETERS, config = params.load_parameters()
 # }
 
 
-def evaluate_classifier(classifier, eval_set, batch_size):
+def evaluate_classifier(classifier, eval_set, batch_size, save_wrong_answer=False):
     """
     Function to get accuracy and cost of the model, evaluated on a chosen dataset.
 
@@ -32,13 +34,24 @@ def evaluate_classifier(classifier, eval_set, batch_size):
     # entailment      |            |         |              
     # neutral         |            |         |               
     # contradiction   |            |         |               
+    wrong_answer = []
 
     for i in range(hypotheses.shape[0]):
         hypothesis = hypotheses[i]
         label = eval_set[i]['label']
         if hypothesis == label:
             correct += 1 
+        else:
+            tmp = eval_set[i]
+            tmp['predict_label'] = hypothesis
+            wrong_answer.append(tmp)
         confusion_matrix[label][hypothesis] += 1 
+
+    if save_wrong_answer:
+        wrong_answer_path = os.path.join(FIXED_PARAMETERS["log_path"], "wrong_answer1.pkl")
+        with open(wrong_answer_path, 'wb') as f:
+            f.write(pickle.dumps(wrong_answer))
+        print('wrong answer saved!') 
 
     confmx = """    label \ predict | entailment | neutral | contradiction
     -------------------------------------------------------
