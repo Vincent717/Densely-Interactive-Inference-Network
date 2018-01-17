@@ -191,6 +191,7 @@ def load_mnli_shared_content():
 def load_mnli_wn_rel_content():
     shared_file_exist = False
     shared_path = config.datapath + "/wn_rel_shared.pkl"
+    #shared_path = config.datapath + "/wn_rel_shared_with_same.pkl"
     print(shared_path)
     if os.path.isfile(shared_path):
         shared_file_exist = True
@@ -688,11 +689,9 @@ def fix_wordnet_rel(datasets):
     process_num = 4
     with open('../data/wn_rel_shared.pkl', 'rb') as f:
         wn_rel = pickle.loads(f.read())
-    shared_content.update(wn_rel)
-    del wn_rel
     for i, dataset in enumerate(datasets):
         num_per_share = int(len(dataset) / process_num + 1)
-        jobs = [ multiprocessing.Process(target=fix_wordnet_rel_worker, args=(shared_content, dataset[i * num_per_share : (i + 1) * num_per_share] )) for i in range(process_num)]
+        jobs = [ multiprocessing.Process(target=fix_wordnet_rel_worker, args=(shared_content, wn_rel, dataset[i * num_per_share : (i + 1) * num_per_share] )) for i in range(process_num)]
         for j in jobs:
             j.start()
         for j in jobs:
@@ -705,15 +704,17 @@ def fix_wordnet_rel(datasets):
         #f.write(json.dumps(dict(shared_content)))
 
 
-def fix_wordnet_rel_worker(shared_content, dataset):
+def fix_wordnet_rel_worker(shared_content, wn_rel, dataset):
     for example in tqdm(dataset):
         aout = []
         a = restrict_len_tokenize(example['sentence1_binary_parse'])
         b = restrict_len_tokenize(example['sentence2_binary_parse'])
         pairid = example['pairID']
         exact_match_dict = find_exact_match(a, b)
+        tmp = wn_rel[pairid]
         for k, v in exact_match_dict.items():
-            shared_content[pairid].__setitem__(k, v)
+            tmp.__setitem__(k, v)
+        shared_content[pairid] = tmp
 
 def find_exact_match(a, b):
     def pretty_word(x):
