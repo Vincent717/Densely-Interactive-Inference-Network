@@ -241,7 +241,9 @@ class MyModelWn(object):
         self.premise_exact_match = tf.placeholder(tf.int32, [None, self.sequence_length,1], name='premise_exact_match')
         self.hypothesis_exact_match = tf.placeholder(tf.int32, [None, self.sequence_length,1], name='hypothesis_exact_match')
         self.wordnet_rel = tf.placeholder(tf.float32, [None, self.sequence_length, self.sequence_length, 5], name='wordnet_rel')
-        
+        self.premise_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='premise_dependency')
+        self.hypothesis_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='hypothesis_dependency')
+
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         
         
@@ -452,7 +454,7 @@ def bi_attention_mx(config, is_train, p, h, p_mask=None, h_mask=None, scope=None
 
         
         h_logits = p_aug * h_aug  # [N, PL, HL, 2d]
-        if wn_rel is not None:
+        if not config.concat_after_conv and wn_rel is not None:
             h_logits = tf.concat([h_logits, wn_rel], -1)   # [N, PL, HL, 2d+5]
         return h_logits
 
@@ -529,7 +531,8 @@ def dense_net(config, denseAttention, is_train):
         print('denset net dim: %s' % dim)
         act = tf.nn.relu if config.first_scale_down_layer_relu else None
         fm = tf.contrib.layers.convolution2d(denseAttention, int(dim * config.dense_net_first_scale_down_ratio), config.first_scale_down_kernel, padding="SAME", activation_fn = act)
-
+        if config.concat_after_conv and wn_rel is not None:
+            fm = tf.concat([fm, wn_rel], -1)   # [N, PL, HL, 2d*scale_down_ratio+5]
         fm = dense_net_block(config, fm, config.dense_net_growth_rate, config.dense_net_layers, config.dense_net_kernel_size, is_train ,scope = "first_dense_net_block") 
         fm = dense_net_transition_layer(config, fm, config.dense_net_transition_rate, scope='second_transition_layer')
         fm = dense_net_block(config, fm, config.dense_net_growth_rate, config.dense_net_layers, config.dense_net_kernel_size, is_train ,scope = "second_dense_net_block") 

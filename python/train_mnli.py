@@ -114,9 +114,6 @@ class modelClassifier:
         self.alpha = FIXED_PARAMETERS["alpha"]
         self.config = config
 
-        
-
-
         if config.use_wn:
             logger.Log("Building the wordnet version model from %s.py" %(model))
             self.model = MyModelWn(self.config, seq_length=self.sequence_length, emb_dim=self.embedding_dim,  hidden_dim=self.dim, embeddings=loaded_embeddings, emb_train=self.emb_train)
@@ -187,9 +184,16 @@ class modelClassifier:
         else:
             wordnet_rel = 1
 
+        if config.use_depend:
+            premise_dependency = [dataset[i]['sentence1_binary_parse_index_dependency'] for i in indices]
+            hypothesis_dependency = [dataset[i]['sentence2_binary_parse_index_dependency'] for i in indices]
+        else:
+            premise_dependency = []
+            hypothesis_dependency = []
+
         return premise_vectors, hypothesis_vectors, labels, genres, premise_pos_vectors, \
                 hypothesis_pos_vectors, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match, wordnet_rel
+                premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, hypothesis_dependency
                 
 
 
@@ -262,7 +266,8 @@ class modelClassifier:
                 # Assemble a minibatch of the next B examples
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match, wordnet_rel = self.get_minibatch(
+                premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, \
+                hypothesis_dependency = self.get_minibatch(
                     training_data, self.batch_size * i, self.batch_size * (i + 1), True, self.config.use_wn)
                 
                 # Run the optimizer to take a gradient step, and also fetch the value of the 
@@ -281,6 +286,11 @@ class modelClassifier:
 
                 if self.config.use_wn:
                     feed_dict[self.model.wordnet_rel] = wordnet_rel
+
+                if self.config.use_depend:
+                    feed_dict[self.model.premise_dependency] = premise_dependency
+                    feed_dict[self.model.hypothesis_dependency] = hypothesis_dependency
+
 
                 if self.step % self.display_step == 0:
                     _, c, summary, logits = self.sess.run([self.optimizer, self.model.total_cost, self.model.summary, self.model.logits], feed_dict)
@@ -414,12 +424,14 @@ class modelClassifier:
             if i != total_batch:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match, wordnet_rel  = self.get_minibatch(
+                premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, \
+                hypothesis_dependency  = self.get_minibatch(
                     examples, self.batch_size * i, self.batch_size * (i + 1), training=False, use_wn=self.config.use_wn)
             else:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match, wordnet_rel = self.get_minibatch(
+                premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, \
+                hypothesis_dependency = self.get_minibatch(
                     examples, self.batch_size * i, len(examples), training=False, use_wn=self.config.use_wn)
             feed_dict = {self.model.premise_x: minibatch_premise_vectors, 
                                 self.model.hypothesis_x: minibatch_hypothesis_vectors,
@@ -434,6 +446,11 @@ class modelClassifier:
                                 self.model.hypothesis_exact_match: hypothesis_exact_match}
             if self.config.use_wn:
                 feed_dict[self.model.wordnet_rel] = wordnet_rel	
+
+            if self.config.use_depend:
+                feed_dict[self.model.premise_dependency] = premise_dependency
+                feed_dict[self.model.hypothesis_dependency] = hypothesis_dependency
+
 
             genres += minibatch_genres
             logit, cost = self.sess.run([self.model.logits, self.model.total_cost], feed_dict)
@@ -480,12 +497,14 @@ class modelClassifier:
             if i != total_batch:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match, wordnet_rel = self.get_minibatch(
+                premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, \
+                hypothesis_dependency = self.get_minibatch(
                     examples, self.batch_size * i, self.batch_size * (i + 1), training=False, use_wn=self.config.use_wn)
             else:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match, wordnet_rel = self.get_minibatch(
+                premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, \
+                hypothesis_dependency = self.get_minibatch(
                     examples, self.batch_size * i, len(examples), training=False, use_wn=self.config.use_wn)
             feed_dict = {self.model.premise_x: minibatch_premise_vectors, 
                                 self.model.hypothesis_x: minibatch_hypothesis_vectors,
@@ -500,6 +519,11 @@ class modelClassifier:
                                 self.model.hypothesis_exact_match: hypothesis_exact_match}
             if self.config.use_wn:
                 feed_dict[self.model.wordnet_rel] = wordnet_rel
+
+            if self.config.use_depend:
+                feed_dict[self.model.premise_dependency] = premise_dependency
+                feed_dict[self.model.hypothesis_dependency] = hypothesis_dependency
+
 
             logit = self.sess.run(self.model.logits, feed_dict)
             IDs = np.concatenate([IDs, pairIDs])
@@ -570,10 +594,10 @@ else:
         dev_mismatched_path = os.path.join(FIXED_PARAMETERS["log_path"], "dev_mismatched_submission_{}.csv".format(modname))
         classifier.generate_predictions_with_id(dev_mismatched_path, dev_mismatched)
 
-        # logger.Log("Generating test matched answers.")
-        # test_matched_path = os.path.join(FIXED_PARAMETERS["log_path"], "test_matched_submission_{}.csv".format(modname))
-        # classifier.generate_predictions_with_id(test_matched_path, test_matched)
+        logger.Log("Generating test matched answers.")
+        test_matched_path = os.path.join(FIXED_PARAMETERS["log_path"], "test_matched_submission_{}.csv".format(modname))
+        classifier.generate_predictions_with_id(test_matched_path, test_matched)
 
-        # logger.Log("Generating test mismatched answers.")
-        # test_mismatched_path = os.path.join(FIXED_PARAMETERS["log_path"], "test_mismatched_submission_{}.csv".format(modname))
-        # classifier.generate_predictions_with_id(test_mismatched_path, test_mismatched)        
+        logger.Log("Generating test mismatched answers.")
+        test_mismatched_path = os.path.join(FIXED_PARAMETERS["log_path"], "test_mismatched_submission_{}.csv".format(modname))
+        classifier.generate_predictions_with_id(test_mismatched_path, test_mismatched)        

@@ -29,8 +29,10 @@ def subtypes(s):
 
 pa = parser.add_argument
 
-pa("model_type", choices=models, type=types, help="Give model type.")
-pa("model_name", type=str, help="Give model name, this will name logs and checkpoints made. For example cbow, esim_test etc.")
+pa("-f", type=str)
+
+pa("--model_type", choices=models, type=types, default="DIIN", help="Give model type.")
+pa("--model_name", type=str, default="diin_kb4", help="Give model name, this will name logs and checkpoints made. For example cbow, esim_test etc.")
 
 pa("--datapath", type=str, default="../data")
 pa("--ckptpath", type=str, default="../logs")
@@ -184,6 +186,10 @@ pa("--visualize_dense_attention_logits", action='store_true', help='visualize th
 
 ## mine
 pa("--use_wn", action='store_true', help='use WordNet information to enhance')
+pa("--concat_after_conv", action='store_false', help='wordnet rel should concat before or after first conv2d')
+pa("--use_depend", action='store_true', help='add dependency information to training')
+pa("--depend_size", type=int, default=6, help='dense net layers') ##
+
 
 
 args = parser.parse_args()

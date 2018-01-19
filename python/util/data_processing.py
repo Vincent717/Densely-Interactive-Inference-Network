@@ -126,6 +126,28 @@ def is_antonyms(token1, token2):
             return True
     return False   
 
+def find_exact_match_info(example):
+    def tokenize(string):
+        string = re.sub(r'\(|\)', '', string)
+        return string.split()
+
+    s1_tokenize = tokenize(example['sentence1_binary_parse'])
+    s2_tokenize = tokenize(example['sentence2_binary_parse'])
+
+
+    s1_token_exact_match = [0] * len(s1_tokenize)
+    s2_token_exact_match = [0] * len(s2_tokenize)
+    s1_token_antonym = [0] * len(s1_tokenize)
+    s2_token_antonym = [0] * len(s2_tokenize)
+    for i, word in enumerate(s1_tokenize):
+        matched = False
+        for j, w2 in enumerate(s2_tokenize):
+            matched = is_exact_match(word, w2)
+            if matched:
+                s1_token_exact_match[i] = 1
+                s2_token_exact_match[j] = 1
+    return s1_token_exact_match, s2_token_exact_match
+
 
 def worker(shared_content, dataset):
     def tokenize(string):
@@ -190,8 +212,8 @@ def load_mnli_shared_content():
 
 def load_mnli_wn_rel_content():
     shared_file_exist = False
-    shared_path = config.datapath + "/wn_rel_shared.pkl"
-    #shared_path = config.datapath + "/wn_rel_shared_with_same.pkl"
+    #shared_path = config.datapath + "/wn_rel_shared.pkl"
+    shared_path = config.datapath + "/wn_rel_shared_with_same.pkl"
     print(shared_path)
     if os.path.isfile(shared_path):
         shared_file_exist = True
@@ -260,9 +282,11 @@ def sentences_to_padded_index_sequences(datasets):
                 example[sentence + '_index_sequence'] = np.zeros((FIXED_PARAMETERS["seq_length"]), dtype=np.int32)
                 example[sentence + '_inverse_term_frequency'] = np.zeros((FIXED_PARAMETERS["seq_length"]), dtype=np.float32)
 
+                if config.use_depend:
+                    example[sentence + '_index_dependency'] = parse_to_dependency(example[sentence], FIXED_PARAMETERS["seq_length"], config.depend_size)
+
                 token_sequence = tokenize(example[sentence])
                 padding = FIXED_PARAMETERS["seq_length"] - len(token_sequence)
-                      
                 for i in range(FIXED_PARAMETERS["seq_length"]):
                     if i >= len(token_sequence):
                         index = word_indices[PADDING]
@@ -292,6 +316,37 @@ def sentences_to_padded_index_sequences(datasets):
     
 
     return indices_to_words, word_indices, char_indices, indices_to_char
+
+def parse_to_dependency(s, words, seq_len=9, max_index=6):
+    word_parse = s.split()
+    out = []
+    for i, w in enumerate(word_parse):
+        if w == '(' or w == ')':
+            continue
+        else:
+            end = word_parse[i:].index(')')
+            tmp = word_parse[i:i+end]
+            tmp = list(filter(lambda x: x !='(', tmp))
+            out.append(tmp)
+        if len(out) > seq_len:
+            break
+    return out, to_index(out, max_index) + [[i] + [0] * (max_index-1) for i in range(len(out),seq_len)] 
+
+def to_index(dp, max_index):
+    words = [d[0] for d in dp]
+    out = []
+    for i,d in enumerate(dp):
+        tmp = []
+        for w in d:
+            try:
+                tmp.append(i+words[i:].index(w))
+            except:
+                continue
+        tmp = tmp[:max_index] + [0] * (max_index - len(tmp))
+        #tmp = [i+words[i:].index(w,0) for w in d]
+        out.append(tmp)
+    return out
+
 
 def get_subword_list(token):
     token = token.lower()
@@ -888,7 +943,11 @@ def is_same_hypernym(x, y):
         yh.update(yi.hypernyms())
     return 1 if (is_syn(x,y)==0 and xh&yh) else 0
 
-
+def pad_tokenize(string):
+    string = re.sub(r'\(|\)', '', string)
+    string = string.split()[:48]
+    string = string + [PADDING] * (48 - len(string))
+    return string
 
 
 if __name__ == '__main__':
@@ -903,11 +962,7 @@ if __name__ == '__main__':
     #           ['I', 'do', "n't", 'yet', 'know', 'the', 'reason', 'why', 'I', 'have', 'lived', 'on', 'earth', '.'] )
     #         ]
     # test = test * 24
-    def pad_tokenize(string):
-        string = re.sub(r'\(|\)', '', string)
-        string = string.split()[:48]
-        string = string + [PADDING] * (48 - len(string))
-        return string
+
     s1 = "( ( ( ( ( ( ( ( Placido ( Domingo 's ) ) appearance ) ( on ( the package ) ) ) , ) ( compellingly ( ( photographed ( in costume ) ) ( as ( ( the ( ancient King ) ) ( of Crete ) ) ) ) ) ) , ) ( -LRB- ( ( ( ( Anthony Tommasini ) , ) ( the ( New ( York Times ) ) ) ) -RRB- ) ) ) ( ( is ( ( ( ( ( ( the ( main ( selling point ) ) ) ( for ( this ( new recording ) ) ) ) ( of one ) ) ( of ( ( Mozart 's ) ( ( more obscure ) operas ) ) ) ) -- ) ( ( a fact ) ( that ( ( does not ) ( make ( critics happy ) ) ) ) ) ) ) . ) )"
     s2 = "( ( ( The ( attracting feature ) ) ( of ( the ( new ( Mozart recording ) ) ) ) ) ( ( is ( ( Placido ( Domingo 's ) ) appearance ) ) . ) )"
     test = [(pad_tokenize(s1), pad_tokenize(s2))]
