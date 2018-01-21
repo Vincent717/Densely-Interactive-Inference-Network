@@ -326,7 +326,7 @@ class MyModelWn(object):
                 bi_att_mx = bi_attention_mx(config, self.is_train, main, support, p_mask=main_mask, h_mask=support_mask, wn_rel=self.wordnet_rel) # [N, PL, HL]
                
                 bi_att_mx = tf.cond(self.is_train, lambda: tf.nn.dropout(bi_att_mx, config.keep_rate), lambda: bi_att_mx)
-                out_final = dense_net(config, bi_att_mx, self.is_train)
+                out_final = dense_net(config, bi_att_mx, self.is_train, wn_rel=self.wordnet_rel)
                 
                 return out_final
 
@@ -524,7 +524,7 @@ def self_attention_layer(config, is_train, p, p_mask=None, scope=None):
 #         return h_a, p_a
 
 
-def dense_net(config, denseAttention, is_train):
+def dense_net(config, denseAttention, is_train, wn_rel=None):
     with tf.variable_scope("dense_net"):
         
         dim = denseAttention.get_shape().as_list()[-1]
@@ -532,7 +532,7 @@ def dense_net(config, denseAttention, is_train):
         act = tf.nn.relu if config.first_scale_down_layer_relu else None
         fm = tf.contrib.layers.convolution2d(denseAttention, int(dim * config.dense_net_first_scale_down_ratio), config.first_scale_down_kernel, padding="SAME", activation_fn = act)
         if config.concat_after_conv and wn_rel is not None:
-            fm = tf.concat([fm, wn_rel], -1)   # [N, PL, HL, 2d*scale_down_ratio+5]
+           fm = tf.concat([fm, wn_rel], -1)   # [N, PL, HL, 2d*scale_down_ratio+5]
         fm = dense_net_block(config, fm, config.dense_net_growth_rate, config.dense_net_layers, config.dense_net_kernel_size, is_train ,scope = "first_dense_net_block") 
         fm = dense_net_transition_layer(config, fm, config.dense_net_transition_rate, scope='second_transition_layer')
         fm = dense_net_block(config, fm, config.dense_net_growth_rate, config.dense_net_layers, config.dense_net_kernel_size, is_train ,scope = "second_dense_net_block") 
