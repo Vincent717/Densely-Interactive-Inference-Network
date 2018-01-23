@@ -101,8 +101,7 @@ class MyModel(object):
                     hyp = h
                     variable_summaries(p, "p_self_enc_summary_layer_{}".format(i))
                     variable_summaries(h, "h_self_enc_summary_layer_{}".format(i))
-            
-                
+           
         with tf.variable_scope("main") as scope:
 
             def model_one_side(config, main, support, main_length, support_length, main_mask, support_mask, scope):
@@ -319,6 +318,20 @@ class MyModelWn(object):
                     variable_summaries(p, "p_self_enc_summary_layer_{}".format(i))
                     variable_summaries(h, "h_self_enc_summary_layer_{}".format(i))
             
+            if config.use_depend:
+                pre = p
+                hyp = h
+                for i in range(config.denp_enc_layers):
+                    with tf.variable_scope(tf.get_variable_scope(), reuse=False):
+                        if config.use_depend:
+                            p = dependency_layer(config, self.is_train, pre, self.premise_dependency, p_mask=prem_mask, scope="{}_layer_dependency_enc".format(i))
+                            h = dependency_layer(config, self.is_train, hyp, self.hypothesis_dependency, p_mask=hyp_mask, scope="{}_layer_dependency_enc_h".format(i))
+                        pre = p
+                        hyp = h
+                        variable_summaries(p, "p_denp_enc_summary_layer_{}".format(i))
+                        variable_summaries(h, "h_denp_enc_summary_layer_{}".format(i))
+                 
+                
                 
         with tf.variable_scope("main") as scope:
 
@@ -334,9 +347,6 @@ class MyModelWn(object):
 
             premise_final = model_one_side(config, p, h, prem_seq_lengths, hyp_seq_lengths, prem_mask, hyp_mask, scope="premise_as_main")
             f0 = premise_final
-
-            
-    
 
         self.logits = linear(f0, self.pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
                                 is_train=self.is_train)
@@ -474,7 +484,6 @@ def self_attention(config, is_train, p, p_mask=None, scope=None): #[N, L, 2d]
             p_mask_aug_2 = tf.reduce_any(tf.cast(tf.tile(tf.expand_dims(p_mask, 1), [1, PL, 1, 1]), tf.bool), axis=3)
             self_mask = p_mask_aug_1 & p_mask_aug_2
 
-
         h_logits = get_logits([p_aug_1, p_aug_2], None, True, wd=config.wd, mask=self_mask,
                               is_train=is_train, func=config.self_att_logit_func, scope='h_logits')  # [N, PL, HL]
         self_att = softsel(p_aug_2, h_logits) 
@@ -496,6 +505,42 @@ def self_attention_layer(config, is_train, p, p_mask=None, scope=None):
         
         return p0
 
+
+def get_denpendency(config, is_train, p, p_denp, p_mask=None, scope=None): #[N, L, 2d]
+    with tf.variable_scope(scope or "self_attention"):
+        PL = p.get_shape().as_list()[1]
+        dim = p.get_shape().as_list()[-1]
+        # HL = tf.shape(h)[1]
+        p_aug_1 = tf.tile(tf.expand_dims(p, 2), [1,1,PL,1])
+        p_aug_2 = tf.tile(tf.expand_dims(p, 1), [1,PL,1,1]) #[N, PL, HL, 2d]
+
+        if p_mask is None:
+            ph_mask = None
+        else:
+            p_mask_aug_1 = tf.reduce_any(tf.cast(tf.tile(tf.expand_dims(p_mask, 2), [1, 1, PL, 1]), tf.bool), axis=3)
+            p_mask_aug_2 = tf.reduce_any(tf.cast(tf.tile(tf.expand_dims(p_mask, 1), [1, PL, 1, 1]), tf.bool), axis=3)
+            self_mask = p_mask_aug_1 & p_mask_aug_2
+
+        h_logits = get_logits([p_aug_1, p_aug_2], None, True, wd=config.wd, mask=self_mask,
+                              is_train=is_train, func=config.self_att_logit_func, scope='h_logits')  # [N, PL, HL]
+        self_att = softsel(p_aug_2, h_logits) 
+
+        return self_att
+
+
+def dependency_layer(config, is_train, p, p_denp, p_mask=None, scope=None):
+    with tf.variable_scope(scope or "dependency_layer"):
+        PL = tf.shape(p)[1]
+        # HL = tf.shape(h)[1]
+        # if config.q2c_att or config.c2q_att:
+        denp = get_denpendency(config, is_train, p, p_denp, p_mask=p_mask)
+
+        print("dependency shape")
+        print(denp.get_shape())
+        
+        p0 = fuse_gate(config, is_train, p, denp, scope="dependency_fuse_gate")
+        
+        return p0
 
 
 

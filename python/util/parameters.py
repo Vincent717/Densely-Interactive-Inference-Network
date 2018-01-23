@@ -189,6 +189,7 @@ pa("--use_wn", action='store_true', help='use WordNet information to enhance')
 pa("--concat_after_conv", action='store_true', help='wordnet rel should concat before or after first conv2d')
 pa("--use_depend", action='store_true', help='add dependency information to training')
 pa("--depend_size", type=int, default=6, help='dense net layers') ##
+pa("--denp_enc_layers", type=int, default=1, help='num layers denpendency enc') ##
 
 
 
