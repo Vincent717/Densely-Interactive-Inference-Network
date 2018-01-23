@@ -507,25 +507,60 @@ def self_attention_layer(config, is_train, p, p_mask=None, scope=None):
 
 
 def get_denpendency(config, is_train, p, p_denp, p_mask=None, scope=None): #[N, L, 2d]
-    with tf.variable_scope(scope or "self_attention"):
-        PL = p.get_shape().as_list()[1]
-        dim = p.get_shape().as_list()[-1]
-        # HL = tf.shape(h)[1]
-        p_aug_1 = tf.tile(tf.expand_dims(p, 2), [1,1,PL,1])
-        p_aug_2 = tf.tile(tf.expand_dims(p, 1), [1,PL,1,1]) #[N, PL, HL, 2d]
+    """
+    p: [70,48,448]
+    p_denp: [70,48,48]
+    """
+    with tf.variable_scope(scope or "get_denpendency"):
+        PL = p.get_shape().as_list()[1]     # 48
+        dim = p.get_shape().as_list()[-1]   # 448
+        # HL = tf.shape(h)[1]    
+        p_wp = linear([p], dim, True, scope='get_denpendency_wp', wd=config.wd, is_train=is_train)  # 70*48*448
+        ci_1 = tf.tile(tf.expand_dims(p_denp, 3), [1,1,1,dim]) # 70*48*48*448
+        ci_2 = tf.tile(tf.expand_dims(p, 2), [1,1,PL,1])
+        ci = tf.to_float(ci_1) * ci_2
+        cis = tf.reduce_sum(ci, axis=2)  # 70*48*448
+        c_wc = linear([cis], dim, True, scope='get_denpendency_wc', wd=config.wd, is_train=is_train)  # 70*48*448
 
-        if p_mask is None:
-            ph_mask = None
-        else:
-            p_mask_aug_1 = tf.reduce_any(tf.cast(tf.tile(tf.expand_dims(p_mask, 2), [1, 1, PL, 1]), tf.bool), axis=3)
-            p_mask_aug_2 = tf.reduce_any(tf.cast(tf.tile(tf.expand_dims(p_mask, 1), [1, PL, 1, 1]), tf.bool), axis=3)
-            self_mask = p_mask_aug_1 & p_mask_aug_2
+        logits = p_wp + c_wc
+        if p_mask is not None:
+            logits = exp_mask(logits, p_mask)
+        logits = tf.nn.relu(logits)
 
-        h_logits = get_logits([p_aug_1, p_aug_2], None, True, wd=config.wd, mask=self_mask,
-                              is_train=is_train, func=config.self_att_logit_func, scope='h_logits')  # [N, PL, HL]
-        self_att = softsel(p_aug_2, h_logits) 
+        return logits
 
-        return self_att
+def to_one_hot(t):
+    """
+    t: 70*48*6
+    return: 70*48*48
+    """
+    PL = t.get_shape().as_list()[1]
+    one_hots = tf.one_hot(t, depth = PL)  # 70*48*6*48
+    return tf.reduce_sum(one_hots, axis=2)
+
+def get_denpendency1(config, is_train, p, p_denp, p_mask=None, scope=None): #[N, L, 2d]
+    """
+    p: [70,48,448]
+    p_denp: [70,48,6]
+    """
+    with tf.variable_scope(scope or "get_denpendency"):
+        PL = p.get_shape().as_list()[1]     # 48
+        dim = p.get_shape().as_list()[-1]   # 448
+        # HL = tf.shape(h)[1]    
+        p_denp = to_one_hot(p_denp)
+        p_wp = linear([p], dim, True, scope='get_denpendency_wp', wd=config.wd, is_train=is_train)  # 70*48*448
+        ci_1 = tf.tile(tf.expand_dims(p_denp, 3), [1,1,1,dim]) # 70*48*48*448
+        ci_2 = tf.tile(tf.expand_dims(p, 2), [1,1,PL,1])
+        ci = tf.to_float(ci_1) * ci_2
+        cis = tf.reduce_sum(ci, axis=2)  # 70*48*448
+        c_wc = linear([cis], dim, True, scope='get_denpendency_wc', wd=config.wd, is_train=is_train)  # 70*48*448
+
+        logits = p_wp + c_wc
+        if p_mask is not None:
+            logits = exp_mask(logits, p_mask)
+        logits = tf.nn.relu(logits)
+
+        return logits
 
 
 def dependency_layer(config, is_train, p, p_denp, p_mask=None, scope=None):
@@ -533,11 +568,12 @@ def dependency_layer(config, is_train, p, p_denp, p_mask=None, scope=None):
         PL = tf.shape(p)[1]
         # HL = tf.shape(h)[1]
         # if config.q2c_att or config.c2q_att:
-        denp = get_denpendency(config, is_train, p, p_denp, p_mask=p_mask)
+        denp = get_denpendency1(config, is_train, p, p_denp, p_mask=p_mask)
 
         print("dependency shape")
         print(denp.get_shape())
         
+        #p0 = denp
         p0 = fuse_gate(config, is_train, p, denp, scope="dependency_fuse_gate")
         
         return p0

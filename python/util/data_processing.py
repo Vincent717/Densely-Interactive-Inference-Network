@@ -283,7 +283,7 @@ def sentences_to_padded_index_sequences(datasets):
                 example[sentence + '_inverse_term_frequency'] = np.zeros((FIXED_PARAMETERS["seq_length"]), dtype=np.float32)
 
                 if config.use_depend:
-                    example[sentence + '_index_dependency'] = parse_to_dependency(example[sentence], FIXED_PARAMETERS["seq_length"], config.depend_size)
+                    example[sentence + '_index_dependency'] = parse_to_dependency(example[sentence], FIXED_PARAMETERS["seq_length"], config.depend_size, one_hot=False)
 
                 token_sequence = tokenize(example[sentence])
                 padding = FIXED_PARAMETERS["seq_length"] - len(token_sequence)
@@ -317,24 +317,59 @@ def sentences_to_padded_index_sequences(datasets):
 
     return indices_to_words, word_indices, char_indices, indices_to_char
 
-def parse_to_dependency(s, words, seq_len=9, max_index=6):
+def tokenize(string):
+    string = re.sub(r'\(|\)', '', string)
+    return string.split()
+
+def parse_to_dependency(s, seq_len=48, max_index=5, one_hot=True):
     word_parse = s.split()
+    words = tokenize(s)
     out = []
     for i, w in enumerate(word_parse):
         if w == '(' or w == ')':
             continue
         else:
-            end = word_parse[i:].index(')')
-            tmp = word_parse[i:i+end]
+            try:
+                end = word_parse[i:].index(')')
+            except:
+                end = 1
+            tmp = word_parse[i+1:i+end]
             tmp = list(filter(lambda x: x !='(', tmp))
             out.append(tmp)
-        if len(out) > seq_len:
+        if len(out) >= seq_len:
             break
-    return out, to_index(out, max_index) + [[i] + [0] * (max_index-1) for i in range(len(out),seq_len)] 
 
-def to_index(dp, max_index):
-    words = [d[0] for d in dp]
+    if one_hot:
+        paddings = [[] for i in range(len(out),seq_len)]
+        indexs = to_index_no_pad(out, words, max_index) + paddings
+        indexs = to_one_hot(indexs, seq_len)
+    else:
+        paddings = [[-1] * max_index for i in range(len(out),seq_len)]
+        indexs = to_index(out, words, max_index) + paddings
+    return indexs
+
+def to_one_hot(indexs, seq_len):
+    #out = [[0] * seq_len] * len(indexs)
+    out = [[0 for _ in range(seq_len)] for _ in range(len(indexs))]
+    for i, idxs in enumerate(indexs):
+        for idx in idxs:
+            #if idx
+            try:
+                out[i][idx] = 1
+            except:
+                continue
+    #print('total unzero index: ', sum([sum(i) for i in out]))
+    return out
+
+def to_index_no_pad(dp, words, max_index):
+    out = [[i+words[i:].index(w) for w in d] for i, d in enumerate(dp)]
+    return out
+
+
+def to_index(dp, words, max_index):
+    #words = [d[0] for d in dp]
     out = []
+    #print(len(dp))
     for i,d in enumerate(dp):
         tmp = []
         for w in d:
@@ -342,7 +377,7 @@ def to_index(dp, max_index):
                 tmp.append(i+words[i:].index(w))
             except:
                 continue
-        tmp = tmp[:max_index] + [0] * (max_index - len(tmp))
+        tmp = tmp[:max_index] + [-1] * (max_index - len(tmp))
         #tmp = [i+words[i:].index(w,0) for w in d]
         out.append(tmp)
     return out

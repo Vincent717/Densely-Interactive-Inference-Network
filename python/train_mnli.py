@@ -51,6 +51,8 @@ if config.debug_model:
     training_snli, dev_snli, test_snli, training_mnli, dev_matched, dev_mismatched, test_mismatched = test_matched, test_matched,test_matched,test_matched,test_matched,test_matched,test_matched
     indices_to_words, word_indices, char_indices, indices_to_chars = sentences_to_padded_index_sequences([test_matched])
     shared_content = load_mnli_shared_content()
+    if config.use_wn:
+       wn_rel_content = load_mnli_wn_rel_content()
 else:
 
     logger.Log("Loading data SNLI")
@@ -185,11 +187,11 @@ class modelClassifier:
             wordnet_rel = 1
 
         if config.use_depend:
-            premise_dependency = [dataset[i]['sentence1_binary_parse_index_dependency'] for i in indices]
-            hypothesis_dependency = [dataset[i]['sentence2_binary_parse_index_dependency'] for i in indices]
+            premise_dependency = np.array([dataset[i]['sentence1_binary_parse_index_dependency'] for i in indices])
+            hypothesis_dependency = np.array([dataset[i]['sentence2_binary_parse_index_dependency'] for i in indices])
         else:
-            premise_dependency = []
-            hypothesis_dependency = []
+            premise_dependency = 1
+            hypothesis_dependency = 1
 
         return premise_vectors, hypothesis_vectors, labels, genres, premise_pos_vectors, \
                 hypothesis_pos_vectors, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
@@ -290,7 +292,6 @@ class modelClassifier:
                 if self.config.use_depend:
                     feed_dict[self.model.premise_dependency] = premise_dependency
                     feed_dict[self.model.hypothesis_dependency] = hypothesis_dependency
-
 
                 if self.step % self.display_step == 0:
                     _, c, summary, logits = self.sess.run([self.optimizer, self.model.total_cost, self.model.summary, self.model.logits], feed_dict)
