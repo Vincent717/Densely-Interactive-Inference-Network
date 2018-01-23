@@ -48,7 +48,7 @@ pa("--seq_length", type=int, default=48, help="Max sequence length")
 pa("--emb_train", action='store_false', help="Call if you want to make your word embeddings trainable.")
 
 pa("--genre", type=str, help="Which genre to train on")
-pa("--alpha", type=float, default=0.3, help="What percentage of SNLI data to use in training")
+pa("--alpha", type=float, default=0.15, help="What percentage of SNLI data to use in training")
 
 pa("--test", action='store_true', help="Call if you want to only test on the best checkpoint.")
 pa("--preprocess_data_only", action='store_true', help='preprocess_data_only')
