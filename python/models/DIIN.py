@@ -319,18 +319,20 @@ class MyModelWn(object):
                     variable_summaries(h, "h_self_enc_summary_layer_{}".format(i))
             
             if config.use_depend:
-                pre = p
-                hyp = h
+                pre1 = premise_in
+                hyp1 = hypothesis_in
                 for i in range(config.denp_enc_layers):
                     with tf.variable_scope(tf.get_variable_scope(), reuse=False):
                         if config.use_depend:
-                            p = dependency_layer(config, self.is_train, pre, self.premise_dependency, p_mask=prem_mask, scope="{}_layer_dependency_enc".format(i))
-                            h = dependency_layer(config, self.is_train, hyp, self.hypothesis_dependency, p_mask=hyp_mask, scope="{}_layer_dependency_enc_h".format(i))
-                        pre = p
-                        hyp = h
+                            p1 = dependency_layer(config, self.is_train, pre1, self.premise_dependency, p_mask=prem_mask, scope="{}_layer_dependency_enc".format(i))
+                            h1 = dependency_layer(config, self.is_train, hyp1, self.hypothesis_dependency, p_mask=hyp_mask, scope="{}_layer_dependency_enc_h".format(i))
+                        pre1 = p1
+                        hyp1 = h1
                         variable_summaries(p, "p_denp_enc_summary_layer_{}".format(i))
                         variable_summaries(h, "h_denp_enc_summary_layer_{}".format(i))
-                 
+            
+                p = tf.concat([p, p1], -1) 
+                h = tf.concat([h, h1], -1) 
                 
                 
         with tf.variable_scope("main") as scope:
@@ -515,12 +517,12 @@ def get_denpendency(config, is_train, p, p_denp, p_mask=None, scope=None): #[N, 
         PL = p.get_shape().as_list()[1]     # 48
         dim = p.get_shape().as_list()[-1]   # 448
         # HL = tf.shape(h)[1]    
-        p_wp = linear([p], dim, True, scope='get_denpendency_wp', wd=config.wd, is_train=is_train)  # 70*48*448
-        ci_1 = tf.tile(tf.expand_dims(p_denp, 3), [1,1,1,dim]) # 70*48*48*448
+        p_wp = linear([p], config.dependency_hidden_size, True, scope='get_denpendency_wp', wd=config.wd, is_train=is_train)  # 70*48*448
+        ci_1 = tf.tile(tf.expand_dims(p_denp, 3), [1,1,1,config.dependency_hidden_size]) # 70*48*48*448
         ci_2 = tf.tile(tf.expand_dims(p, 2), [1,1,PL,1])
         ci = tf.to_float(ci_1) * ci_2
         cis = tf.reduce_sum(ci, axis=2)  # 70*48*448
-        c_wc = linear([cis], dim, True, scope='get_denpendency_wc', wd=config.wd, is_train=is_train)  # 70*48*448
+        c_wc = linear([cis], config.dependency_hidden_size, True, scope='get_denpendency_wc', wd=config.wd, is_train=is_train)  # 70*48*448
 
         logits = p_wp + c_wc
         if p_mask is not None:
@@ -548,12 +550,12 @@ def get_denpendency1(config, is_train, p, p_denp, p_mask=None, scope=None): #[N,
         dim = p.get_shape().as_list()[-1]   # 448
         # HL = tf.shape(h)[1]    
         p_denp = to_one_hot(p_denp)
-        p_wp = linear([p], dim, True, scope='get_denpendency_wp', wd=config.wd, is_train=is_train)  # 70*48*448
+        p_wp = linear([p], config.dependency_hidden_size, True, scope='get_denpendency_wp', wd=config.wd, is_train=is_train)  # 70*48*448
         ci_1 = tf.tile(tf.expand_dims(p_denp, 3), [1,1,1,dim]) # 70*48*48*448
         ci_2 = tf.tile(tf.expand_dims(p, 2), [1,1,PL,1])
         ci = tf.to_float(ci_1) * ci_2
         cis = tf.reduce_sum(ci, axis=2)  # 70*48*448
-        c_wc = linear([cis], dim, True, scope='get_denpendency_wc', wd=config.wd, is_train=is_train)  # 70*48*448
+        c_wc = linear([cis], config.dependency_hidden_size, True, scope='get_denpendency_wc', wd=config.wd, is_train=is_train)  # 70*48*448
 
         logits = p_wp + c_wc
         if p_mask is not None:
@@ -573,8 +575,8 @@ def dependency_layer(config, is_train, p, p_denp, p_mask=None, scope=None):
         print("dependency shape")
         print(denp.get_shape())
         
-        #p0 = denp
-        p0 = fuse_gate(config, is_train, p, denp, scope="dependency_fuse_gate")
+        p0 = denp
+        #p0 = fuse_gate(config, is_train, p, denp, scope="dependency_fuse_gate")
         
         return p0
 
