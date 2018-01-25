@@ -319,8 +319,8 @@ class MyModelWn(object):
                     variable_summaries(h, "h_self_enc_summary_layer_{}".format(i))
             
             if config.use_depend:
-                pre1 = premise_in
-                hyp1 = hypothesis_in
+                pre1 = p
+                hyp1 = h
                 for i in range(config.denp_enc_layers):
                     with tf.variable_scope(tf.get_variable_scope(), reuse=False):
                         if config.use_depend:

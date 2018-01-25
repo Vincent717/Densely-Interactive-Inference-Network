@@ -191,7 +191,11 @@ pa("--use_depend", action='store_true', help='add dependency information to trai
 pa("--depend_size", type=int, default=5, help='maximum depend distance') ##
 pa("--denp_enc_layers", type=int, default=1, help='num layers denpendency enc') ##
 pa("--dependency_logit_func", type=str, default="sum", help='dependency logit function')
-pa("--dependency_hidden_size", type=int, default=64, help='dependency layer hidden size') ##
+pa("--dependency_hidden_size", type=int, default=32, help='dependency layer hidden size') ##
+pa("--use_more_interaction", action='store_true', help='add dependency information to training')
+
+
+
 
 args = parser.parse_args()
 
