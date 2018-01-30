@@ -466,8 +466,12 @@ def bi_attention_mx(config, is_train, p, h, p_mask=None, h_mask=None, scope=None
 
         
         h_logits = p_aug * h_aug  # [N, PL, HL, 2d]
+        if config.use_more_interaction:
+            h_logits_sub = p_aug - h_aug
+            h_logits = tf.concat([h_logits, h_logits_sub], -1)   # [N, PL, HL, 2d+2d]
+
         if not config.concat_after_conv and wn_rel is not None:
-            h_logits = tf.concat([h_logits, wn_rel], -1)   # [N, PL, HL, 2d+5]
+            h_logits = tf.concat([h_logits, wn_rel], -1)   # [N, PL, HL, 2d+2d+5]
         return h_logits
 
 
@@ -614,8 +618,10 @@ def dense_net(config, denseAttention, is_train, wn_rel=None):
         print('denset net dim: %s' % dim)
         act = tf.nn.relu if config.first_scale_down_layer_relu else None
         fm = tf.contrib.layers.convolution2d(denseAttention, int(dim * config.dense_net_first_scale_down_ratio), config.first_scale_down_kernel, padding="SAME", activation_fn = act)
+
         if config.concat_after_conv and wn_rel is not None:
            fm = tf.concat([fm, wn_rel], -1)   # [N, PL, HL, 2d*scale_down_ratio+5]
+        
         fm = dense_net_block(config, fm, config.dense_net_growth_rate, config.dense_net_layers, config.dense_net_kernel_size, is_train ,scope = "first_dense_net_block") 
         fm = dense_net_transition_layer(config, fm, config.dense_net_transition_rate, scope='second_transition_layer')
         fm = dense_net_block(config, fm, config.dense_net_growth_rate, config.dense_net_layers, config.dense_net_kernel_size, is_train ,scope = "second_dense_net_block") 
