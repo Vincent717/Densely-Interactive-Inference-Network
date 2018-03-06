@@ -156,6 +156,7 @@ class MyModel(object):
             tf.summary.scalar('l2loss', l2loss)
             self.total_cost += l2loss
 
+
         if config.wo_enc_sharing or config.wo_highway_sharing_but_penalize_diff:
             diffs = []
             for i in range(config.self_att_enc_layers):
@@ -385,6 +386,34 @@ class MyModelWn(object):
                 l2loss = tf.add_n([tf.nn.l2_loss(tensor) for tensor in tf.trainable_variables() if tensor.name.endswith("weights:0") or tensor.name.endswith('kernel:0')]) * tf.constant(config.l2_regularization_ratio , dtype='float', shape=[], name='l2_regularization_ratio')
             tf.summary.scalar('l2loss', l2loss)
             self.total_cost += l2loss
+
+        # semantic Loss
+        if config.semantic_loss:
+            #semantic_loss = tf.add_n([tf.nn.l2_loss(tensor) for tensor in tf.trainable_variables() 
+            #    if tensor.name.endswith("weights:0") or tensor.name.endswith('kernel:0')]) 
+            
+            def cal_exactly_one_loss(logits):
+                return -tf.log(tf.add_n([logits[0]*(1-logits[1])*(1-logits[2]),
+                                  logits[1]*(1-logits[0])*(1-logits[2]),
+                                  logits[2]*(1-logits[0])*(1-logits[1]),
+                                ]))
+
+            def cal_logic_rules_loss(rules, logits):
+                def cal_logic_rule(ro, ls):
+                    if ro == '0':
+                        return ls[0]*(1-ls[1])*(1-ls[2])
+                    elif ro == '1':
+                        return ls[1]*(1-ls[0])*(1-ls[2])
+                    elif ro == '2':
+                        return ls[2]*(1-ls[0])*(1-ls[1])
+                return -tf.log(tf.add_n([cal_logic_rule(rule_output, logits) for rule_output in rules]))
+
+            semantic_loss = cal_logic_rules_loss(self.rules_output, self.logits)
+            if config.use_exactly_one:
+                semantic_loss += cal_exactly_one_loss(self.logits)
+            semantic_loss = semantic_loss * tf.constant(config. semantic_regularization_ratio , dtype='float', shape=[], name='semantic_regularization_ratio')
+            tf.summary.scalar('semantic loss', semantic_loss)
+            self.total_cost += semantic_loss
 
         if config.wo_enc_sharing or config.wo_highway_sharing_but_penalize_diff:
             diffs = []
