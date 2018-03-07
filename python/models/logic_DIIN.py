@@ -119,8 +119,6 @@ class MyModel(object):
             
                 p = tf.concat([p, p1], -1) 
                 h = tf.concat([h, h1], -1) 
-              
-
 
         with tf.variable_scope("main") as scope:
 
@@ -132,18 +130,25 @@ class MyModel(object):
                 
                 return out_final
 
-
-
             premise_final = model_one_side(config, p, h, prem_seq_lengths, hyp_seq_lengths, prem_mask, hyp_mask, scope="premise_as_main")
             f0 = premise_final
-
-            
-    
 
         self.logits = linear(f0, self.pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
                                 is_train=self.is_train)
 
         tf.summary.histogram('logit_histogram', self.logits)
+
+        if config.use_logic:
+            # construct teacher network output
+            q_y_x = self.logits
+            if self.hit_and_rule:
+                p1, p2 = p[:self.and_ind], p[self.and_ind+1]
+                sub_logit1 = whole_model(p1, h)
+                sub_logit2 = whole_model(p2, h)
+                
+
+            distr = 
+
 
         # Define the cost function
         self.total_cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
