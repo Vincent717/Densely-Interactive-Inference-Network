@@ -168,13 +168,17 @@ class MyModel(object):
                 logits = tf.nn.softmax(logits)
                 return logits
 
+            def cal_and_distr(sub_logits1, sub_logits2, c, lambdal):
+                result = 1
+                
+
             # construct teacher network output
             q_y_x = self.logits
             if self.and_index != -1:
                 p1 = tf.slice(p, [0, 0, 0], [-1, self.and_index, -1])
                 p2 = tf.slice(p, [0, self.and_index, 0], [-1, -1, -1])
-                sub_logit1 = go_through_whole_model(p1, h)
-                sub_logit2 = go_through_whole_model(p2, h)
+                sub_logits1 = go_through_whole_model(p1, h)
+                sub_logits2 = go_through_whole_model(p2, h)
                 
                 distr = 
 
