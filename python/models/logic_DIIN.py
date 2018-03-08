@@ -92,7 +92,9 @@ class MyModel(object):
             scope.reuse_variables()
             hypothesis_in = highway_network(hypothesis_in, config.highway_num_layers, True, wd=config.wd, is_train=self.is_train)
 
-        with tf.variable_scope("prepro") as scope:
+
+        ## self attention process
+        def model_self_attention(config, premise_in, hypothesis_in, prem_mask, hyp_mask):
             pre = premise_in
             hyp = hypothesis_in
             for i in range(config.self_att_enc_layers):
@@ -118,18 +120,24 @@ class MyModel(object):
                         variable_summaries(h, "h_denp_enc_summary_layer_{}".format(i))
             
                 p = tf.concat([p, p1], -1) 
-                h = tf.concat([h, h1], -1) 
+                h = tf.concat([h, h1], -1)
+            return p, h 
 
+        ## main process : interaction + dense net
+        def model_one_side(config, main, support, main_length, support_length, main_mask, support_mask, scope):
+            bi_att_mx = bi_attention_mx(config, self.is_train, main, support, p_mask=main_mask, h_mask=support_mask) # [N, PL, HL]
+           
+            bi_att_mx = tf.cond(self.is_train, lambda: tf.nn.dropout(bi_att_mx, config.keep_rate), lambda: bi_att_mx)
+            out_final = dense_net(config, bi_att_mx, self.is_train)
+            
+            return out_final
+
+        # self attention
+        with tf.variable_scope("prepro") as scope:
+            p, h = model_self_attention(config, premise_in, hypothesis_in, prem_mask, hyp_mask)
+
+        # main
         with tf.variable_scope("main") as scope:
-
-            def model_one_side(config, main, support, main_length, support_length, main_mask, support_mask, scope):
-                bi_att_mx = bi_attention_mx(config, self.is_train, main, support, p_mask=main_mask, h_mask=support_mask) # [N, PL, HL]
-               
-                bi_att_mx = tf.cond(self.is_train, lambda: tf.nn.dropout(bi_att_mx, config.keep_rate), lambda: bi_att_mx)
-                out_final = dense_net(config, bi_att_mx, self.is_train)
-                
-                return out_final
-
             premise_final = model_one_side(config, p, h, prem_seq_lengths, hyp_seq_lengths, prem_mask, hyp_mask, scope="premise_as_main")
             f0 = premise_final
 
@@ -138,16 +146,37 @@ class MyModel(object):
 
         tf.summary.histogram('logit_histogram', self.logits)
 
+        ## Hu 2016
         if config.use_logic:
+            def go_through_whole_model(premise_in, hypothesis_in, config=self.config, prem_mask=prem_mask, hyp_mask=hyp_mask, pred_size=self.pred_size, is_train=self.is_train):
+                # with tf.variable_scope("highway") as scope:
+                #     premise_in = highway_network(premise_in, config.highway_num_layers, True, wd=config.wd, is_train=self.is_train)    
+                #     scope.reuse_variables()
+                #     hypothesis_in = highway_network(hypothesis_in, config.highway_num_layers, True, wd=config.wd, is_train=self.is_train)
+
+                # self attention
+                with tf.variable_scope("prepro") as scope:
+                    p, h = model_self_attention(config, premise_in, hypothesis_in, prem_mask, hyp_mask)
+
+                # main
+                with tf.variable_scope("main") as scope:
+                    premise_final = model_one_side(config, p, h, prem_seq_lengths, hyp_seq_lengths, prem_mask, hyp_mask, scope="premise_as_main")
+                    f0 = premise_final
+
+                logits = linear(f0, pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
+                                        is_train=is_train)
+                logits = tf.nn.softmax(logits)
+                return logits
+
             # construct teacher network output
             q_y_x = self.logits
-            if self.hit_and_rule:
-                p1, p2 = p[:self.and_ind], p[self.and_ind+1]
-                sub_logit1 = whole_model(p1, h)
-                sub_logit2 = whole_model(p2, h)
+            if self.and_index != -1:
+                p1 = tf.slice(p, [0, 0, 0], [-1, self.and_index, -1])
+                p2 = tf.slice(p, [0, self.and_index, 0], [-1, -1, -1])
+                sub_logit1 = go_through_whole_model(p1, h)
+                sub_logit2 = go_through_whole_model(p2, h)
                 
-
-            distr = 
+                distr = 
 
 
         # Define the cost function
