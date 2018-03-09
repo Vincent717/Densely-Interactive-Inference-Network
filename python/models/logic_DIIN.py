@@ -28,6 +28,8 @@ class MyModel(object):
         self.premise_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='premise_dependency')
         self.hypothesis_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='hypothesis_dependency')
 
+        self.and_index = tf.placeholder(tf,int32, [None, 1], name='and_index')
+        self.epoch = tf.placeholder(tf,int32, [1], name='epoch')
         
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         
@@ -168,9 +170,21 @@ class MyModel(object):
                 logits = tf.nn.softmax(logits)
                 return logits
 
-            def cal_and_distr(sub_logits1, sub_logits2, c, lambdal):
-                result = 1
-                
+            def cal_and_distr(sub_logits1, sub_logits2, c, lambdal=1):
+                # for rule in rules:
+                #     if rule == 'AndE':
+                pre_distr = tf.minimum(sub_logits1 + sub_logits1, 1)  # 70x3
+                r_AE_y0 = (pre_distr[:,0] + 1) / 2  # 70x1
+                r_AC_y0 = (2 - pre_distr[:,2]) / 2  # 70x1
+                r_AE_y1 = (2 - pre_distr[:,0]) / 2
+                r_AC_y1 = (pre_dis[:,2] + 1) / 2
+                r_AE_y2 = r_AE_y1
+                r_AC_y2 = r_AC_y0
+                r_y0 = c*lambdal* ( 1 - r_AE_y0 - r_AC_y0)  # 70x1
+                r_y1 = c*lambdal* ( 1 - r_AE_y1 - r_AC_y1)  # 70x1
+                r_y2 = c*lambdal* ( 1 - r_AE_y2 - r_AC_y2)  # 70x1
+                return - tf.concat([r_y0, r_y1, r_y2], axis=1)
+
 
             # construct teacher network output
             q_y_x = self.logits
@@ -180,19 +194,26 @@ class MyModel(object):
                 sub_logits1 = go_through_whole_model(p1, h)
                 sub_logits2 = go_through_whole_model(p2, h)
                 
-                distr = 
-
+                distr = cal_and_distr(sub_logits1, sub_logits2, config.C, config.lambdal)
+                q_y_x = self.logits * tf.exp(distr)
 
         # Define the cost function
-        self.total_cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
-        self.acc = tf.reduce_mean(tf.cast(tf.equal(tf.arg_max(self.logits, dimension=1),tf.cast(self.y,tf.int64)), tf.float32))
-        tf.summary.scalar('acc', self.acc)
-        tf.summary.scalar('loss', self.total_cost)
-        #self.auc_ROC = tf.metrics.auc(tf.cast(self.y,tf.int64), tf.arg_max(self.logits, dimension=1), curve = 'ROC')
-        #self.auc_PR =  tf.metrics.auc(tf.cast(self.y,tf.int64), tf.arg_max(self.logits, dimension=1), curve = 'PR')
-        #tf.summary.scalar('auc_ROC', self.auc_ROC)
-        #tf.summary.scalar('auc_PR', self.auc_PR)
-        # calculate acc 
+        if not config.use_logic:
+            self.total_cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
+            self.acc = tf.reduce_mean(tf.cast(tf.equal(tf.arg_max(self.logits, dimension=1),tf.cast(self.y,tf.int64)), tf.float32))
+            tf.summary.scalar('acc', self.acc)
+            tf.summary.scalar('loss', self.total_cost)
+            #self.auc_ROC = tf.metrics.auc(tf.cast(self.y,tf.int64), tf.arg_max(self.logits, dimension=1), curve = 'ROC')
+            #self.auc_PR =  tf.metrics.auc(tf.cast(self.y,tf.int64), tf.arg_max(self.logits, dimension=1), curve = 'PR')
+            #tf.summary.scalar('auc_ROC', self.auc_ROC)
+            #tf.summary.scalar('auc_PR', self.auc_PR)
+            # calculate acc 
+        else:
+            self.total_cost = (1-config.pi)*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
+            self.total_cost += config.pi*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf.arg_max(q_y_x, dimension=1), logits=self.logits))
+            self.acc = tf.reduce_mean(tf.cast(tf.equal(tf.arg_max(self.logits, dimension=1),tf.cast(self.y,tf.int64)), tf.float32))
+            tf.summary.scalar('acc', self.acc)
+            tf.summary.scalar('loss', self.total_cost)
         
         # L2 Loss
         if config.l2_loss:
@@ -220,10 +241,12 @@ class MyModel(object):
             #    if tensor.name.endswith("weights:0") or tensor.name.endswith('kernel:0')]) 
             
             def cal_exactly_one_loss(logits):
-                return -tf.log(tf.add_n([logits[0]*(1-logits[1])*(1-logits[2]),
-                                  logits[1]*(1-logits[0])*(1-logits[2]),
-                                  logits[2]*(1-logits[0])*(1-logits[1]),
-                                ]))
+                #semantic_loss = tf.Variable(tf.zeros([], dtype=np.float32), name='semantic_loss_term')
+
+                return tf.reduce_sum(-tf.log(logits[:,0]*(1-logits[:,1])*(1-logits[:,2]) +
+                               logits[:,1]*(1-logits[:,0])*(1-logits[:,2]) +
+                               logits[:,2]*(1-logits[:,0])*(1-logits[:,1])
+                                ))
 
             def cal_logic_rules_loss(rules, logits):
                 def cal_logic_rule(ro, ls):
@@ -235,10 +258,11 @@ class MyModel(object):
                         return ls[2]*(1-ls[0])*(1-ls[1])
                 return -tf.log(tf.add_n([cal_logic_rule(rule_output, logits) for rule_output in rules]))
 
-            semantic_loss = cal_logic_rules_loss(self.rules_output, self.logits)
+            #semantic_loss = cal_logic_rules_loss(self.rules_output, self.logits)
             if config.use_exactly_one:
-                semantic_loss += cal_exactly_one_loss(self.logits)
-            semantic_loss = semantic_loss * tf.constant(config. semantic_regularization_ratio , dtype='float', shape=[], name='semantic_regularization_ratio')
+                semantic_loss = cal_exactly_one_loss(self.logits)
+            semantic_loss = tf.reduce_mean(semantic_loss)
+            semantic_loss = semantic_loss * tf.constant(config.semantic_regularization_ratio , dtype='float', shape=[], name='semantic_regularization_ratio')
             tf.summary.scalar('semantic loss', semantic_loss)
             self.total_cost += semantic_loss
 
@@ -329,6 +353,10 @@ class MyModelWn(object):
         self.wordnet_rel = tf.placeholder(tf.float32, [None, self.sequence_length, self.sequence_length, 5], name='wordnet_rel')
         self.premise_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='premise_dependency')
         self.hypothesis_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='hypothesis_dependency')
+
+        self.and_index = tf.placeholder(tf,int32, [None, 1], name='and_index')
+        self.epoch = tf.placeholder(tf,int32, [1], name='epoch')
+
 
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         
@@ -479,10 +507,12 @@ class MyModelWn(object):
             #    if tensor.name.endswith("weights:0") or tensor.name.endswith('kernel:0')]) 
             
             def cal_exactly_one_loss(logits):
-                return -tf.log(tf.add_n([logits[0]*(1-logits[1])*(1-logits[2]),
-                                  logits[1]*(1-logits[0])*(1-logits[2]),
-                                  logits[2]*(1-logits[0])*(1-logits[1]),
-                                ]))
+                #semantic_loss = tf.Variable(tf.zeros([], dtype=np.float32), name='semantic_loss_term')
+
+                return tf.reduce_sum(-tf.log(logits[:,0]*(1-logits[:,1])*(1-logits[:,2]) +
+                               logits[:,1]*(1-logits[:,0])*(1-logits[:,2]) +
+                               logits[:,2]*(1-logits[:,0])*(1-logits[:,1])
+                                ))
 
             def cal_logic_rules_loss(rules, logits):
                 def cal_logic_rule(ro, ls):
@@ -494,10 +524,11 @@ class MyModelWn(object):
                         return ls[2]*(1-ls[0])*(1-ls[1])
                 return -tf.log(tf.add_n([cal_logic_rule(rule_output, logits) for rule_output in rules]))
 
-            semantic_loss = cal_logic_rules_loss(self.rules_output, self.logits)
+            #semantic_loss = cal_logic_rules_loss(self.rules_output, self.logits)
             if config.use_exactly_one:
-                semantic_loss += cal_exactly_one_loss(self.logits)
-            semantic_loss = semantic_loss * tf.constant(config. semantic_regularization_ratio , dtype='float', shape=[], name='semantic_regularization_ratio')
+                semantic_loss = cal_exactly_one_loss(self.logits)
+            semantic_loss = tf.reduce_mean(semantic_loss)
+            semantic_loss = semantic_loss * tf.constant(config.semantic_regularization_ratio , dtype='float', shape=[], name='semantic_regularization_ratio')
             tf.summary.scalar('semantic loss', semantic_loss)
             self.total_cost += semantic_loss
 
