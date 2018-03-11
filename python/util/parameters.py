@@ -12,7 +12,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 
-models = ['attmix_CNN', "DIIN"]
+models = ['attmix_CNN', "DIIN", "logic_DIIN"]
 def types(s):
     options = [mod for mod in models if s in models]
     if len(options) == 1:
@@ -204,7 +204,7 @@ pa("--use_logic", action='store_true', help='have logic rules') ##
 pa("--pi", type=float, default=0.1, help='initial logic rules imitation ratio') ##
 pa("--C", type=float, default=400, help='rule regularization') ##
 pa("--lambdal", type=float, default=1, help='semantic regularization ratio') ##
-pa()
+#pa()
 
 
 args = parser.parse_args()

@@ -183,11 +183,12 @@ class MyModel(object):
             
             def cal_exactly_one_loss(logits):
                 #semantic_loss = tf.Variable(tf.zeros([], dtype=np.float32), name='semantic_loss_term')
-
-                return tf.reduce_sum(-tf.log(logits[:,0]*(1-logits[:,1])*(1-logits[:,2]) +
+                logits = tf.nn.softmax(logits)
+                loss = tf.clip_by_value(logits[:,0]*(1-logits[:,1])*(1-logits[:,2]) +
                                logits[:,1]*(1-logits[:,0])*(1-logits[:,2]) +
-                               logits[:,2]*(1-logits[:,0])*(1-logits[:,1])
-                                ))
+                               logits[:,2]*(1-logits[:,0])*(1-logits[:,1]),
+                               1e-10,3.0)
+                return -tf.log(loss)   # 70x1
 
             def cal_logic_rules_loss(rules, logits):
                 def cal_logic_rule(ro, ls):

@@ -28,8 +28,8 @@ class MyModel(object):
         self.premise_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='premise_dependency')
         self.hypothesis_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='hypothesis_dependency')
 
-        self.and_index = tf.placeholder(tf,int32, [None, 1], name='and_index')
-        self.epoch = tf.placeholder(tf,int32, [1], name='epoch')
+        self.and_index = tf.placeholder(tf.int32, [None, 1], name='and_index')
+        self.epoch = tf.placeholder(tf.int32, [1], name='epoch')
         
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         
@@ -143,31 +143,32 @@ class MyModel(object):
             premise_final = model_one_side(config, p, h, prem_seq_lengths, hyp_seq_lengths, prem_mask, hyp_mask, scope="premise_as_main")
             f0 = premise_final
 
-        self.logits = linear(f0, self.pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
+            self.logits = linear(f0, self.pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
                                 is_train=self.is_train)
 
         tf.summary.histogram('logit_histogram', self.logits)
 
         ## Hu 2016
         if config.use_logic:
-            def go_through_whole_model(premise_in, hypothesis_in, config=self.config, prem_mask=prem_mask, hyp_mask=hyp_mask, pred_size=self.pred_size, is_train=self.is_train):
+            def go_through_whole_model(premise_in, hypothesis_in, config=config, prem_mask=prem_mask, hyp_mask=hyp_mask, pred_size=self.pred_size, is_train=self.is_train):
                 # with tf.variable_scope("highway") as scope:
                 #     premise_in = highway_network(premise_in, config.highway_num_layers, True, wd=config.wd, is_train=self.is_train)    
                 #     scope.reuse_variables()
                 #     hypothesis_in = highway_network(hypothesis_in, config.highway_num_layers, True, wd=config.wd, is_train=self.is_train)
 
                 # self attention
-                with tf.variable_scope("prepro") as scope:
-                    p, h = model_self_attention(config, premise_in, hypothesis_in, prem_mask, hyp_mask)
+                #with tf.variable_scope("prepro") as scope:
+                #    p, h = model_self_attention(config, premise_in, hypothesis_in, prem_mask, hyp_mask)
 
+                p, h = premise_in, hypothesis_in
                 # main
-                with tf.variable_scope("main") as scope:
+                with tf.variable_scope("main", reuse=True) as scope:
                     premise_final = model_one_side(config, p, h, prem_seq_lengths, hyp_seq_lengths, prem_mask, hyp_mask, scope="premise_as_main")
                     f0 = premise_final
 
-                logits = linear(f0, pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
+                    logits = linear(f0, pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
                                         is_train=is_train)
-                logits = tf.nn.softmax(logits)
+                    logits = tf.nn.softmax(logits)
                 return logits
 
             def cal_and_distr(sub_logits1, sub_logits2, c, lambdal=1):
@@ -177,20 +178,24 @@ class MyModel(object):
                 r_AE_y0 = (pre_distr[:,0] + 1) / 2  # 70x1
                 r_AC_y0 = (2 - pre_distr[:,2]) / 2  # 70x1
                 r_AE_y1 = (2 - pre_distr[:,0]) / 2
-                r_AC_y1 = (pre_dis[:,2] + 1) / 2
+                r_AC_y1 = (pre_distr[:,2] + 1) / 2
                 r_AE_y2 = r_AE_y1
                 r_AC_y2 = r_AC_y0
                 r_y0 = c*lambdal* ( 1 - r_AE_y0 - r_AC_y0)  # 70x1
                 r_y1 = c*lambdal* ( 1 - r_AE_y1 - r_AC_y1)  # 70x1
                 r_y2 = c*lambdal* ( 1 - r_AE_y2 - r_AC_y2)  # 70x1
+                print(r_y0,r_y1,r_y2, - tf.concat([r_y0, r_y1, r_y2], axis=0), 2222222)
                 return - tf.concat([r_y0, r_y1, r_y2], axis=1)
 
 
             # construct teacher network output
             q_y_x = self.logits
             if self.and_index != -1:
-                p1 = tf.slice(p, [0, 0, 0], [-1, self.and_index, -1])
-                p2 = tf.slice(p, [0, self.and_index, 0], [-1, -1, -1])
+                print(p, self.and_index, 93939393939)
+                #p1 = tf.slice(p, [0, 0, 0], [-1, self.and_index, -1])
+                #p2 = tf.slice(p, [0, self.and_index, 0], [-1, -1, -1])
+                p1 = p
+                p2 = p
                 sub_logits1 = go_through_whole_model(p1, h)
                 sub_logits2 = go_through_whole_model(p2, h)
                 

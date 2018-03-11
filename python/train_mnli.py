@@ -194,7 +194,9 @@ class modelClassifier:
             hypothesis_dependency = 1
 
         if config.use_logic:
-            and_index = 0
+            and_dic = word_indices.get('and', -1)
+            print([dataset[i]['sentence1_binary_parse_index_sequence'][:] for i in indices], and_index, 44444444)
+            and_index = np.array([dataset[i]['sentence1_binary_parse_index_sequence'][:] for i in indices])
         else:
             and_index = -1
 
