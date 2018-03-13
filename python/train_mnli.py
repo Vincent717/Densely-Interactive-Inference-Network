@@ -14,6 +14,7 @@ from util.evaluate import *
 from tqdm import tqdm
 import gzip
 import pickle
+import numpy as np
 
 
 FIXED_PARAMETERS, config = params.load_parameters()
@@ -151,6 +152,16 @@ class modelClassifier:
     def get_word_sequence(self, idxs):
         return [indices_to_words.get(i, '') for i in idxs]
 
+    def find_index(self, ls, ind):
+        res = []
+        for i in range(len(ls)):
+            if ind in ls[i]:
+                res.append([i, np.argwhere(ls[i]==ind)[0][0]])
+        res += [[-1,-1]]* (40-len(res))
+        print(res, len(res))
+        return res
+
+
     def get_minibatch(self, dataset, start_index, end_index, training=False, use_wn=False):
         indices = range(start_index, end_index)
 
@@ -195,10 +206,9 @@ class modelClassifier:
 
         if config.use_logic:
             and_dic = word_indices.get('and', -1)
-            print([dataset[i]['sentence1_binary_parse_index_sequence'][:] for i in indices], and_index, 44444444)
-            and_index = np.array([dataset[i]['sentence1_binary_parse_index_sequence'][:] for i in indices])
+            and_index = np.array(self.find_index([dataset[i]['sentence1_binary_parse_index_sequence'][:] for i in indices],and_dic))
         else:
-            and_index = -1
+            and_index = []
 
         return premise_vectors, hypothesis_vectors, labels, genres, premise_pos_vectors, \
                 hypothesis_pos_vectors, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
@@ -303,7 +313,7 @@ class modelClassifier:
 
                 if self.config.use_logic:
                     feed_dict[self.model.and_index] = and_index
-                    feed_dict[self.model.epoch] = self.epoch
+                    #feed_dict[self.model.epoch] = self.epoch
 
                 if self.step % self.display_step == 0:
                     _, c, summary, logits = self.sess.run([self.optimizer, self.model.total_cost, self.model.summary, self.model.logits], feed_dict)
@@ -466,7 +476,7 @@ class modelClassifier:
 
             if self.config.use_logic:
                 feed_dict[self.model.and_index] = and_index
-                feed_dict[self.model.epoch] = 0
+                #feed_dict[self.model.epoch] = 0
 
             genres += minibatch_genres
             logit, cost = self.sess.run([self.model.logits, self.model.total_cost], feed_dict)
@@ -542,7 +552,7 @@ class modelClassifier:
 
             if self.config.use_logic:
                 feed_dict[self.model.and_index] = and_index
-                feed_dict[self.model.epoch] = self.epoch
+                #feed_dict[self.model.epoch] = self.epoch
 
             logit = self.sess.run(self.model.logits, feed_dict)
             IDs = np.concatenate([IDs, pairIDs])

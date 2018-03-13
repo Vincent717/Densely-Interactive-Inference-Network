@@ -28,8 +28,8 @@ class MyModel(object):
         self.premise_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='premise_dependency')
         self.hypothesis_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='hypothesis_dependency')
 
-        self.and_index = tf.placeholder(tf.int32, [None, 1], name='and_index')
-        self.epoch = tf.placeholder(tf.int32, [1], name='epoch')
+        self.and_index = tf.placeholder(tf.int32, [40, 2], name='hit_and_index')
+        #self.epoch = tf.placeholder(tf.int32, [1], name='epoch')
         
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         
@@ -149,6 +149,7 @@ class MyModel(object):
         tf.summary.histogram('logit_histogram', self.logits)
 
         ## Hu 2016
+        hit_index_batch = []
         if config.use_logic:
             def go_through_whole_model(premise_in, hypothesis_in, config=config, prem_mask=prem_mask, hyp_mask=hyp_mask, pred_size=self.pred_size, is_train=self.is_train):
                 # with tf.variable_scope("highway") as scope:
@@ -172,6 +173,11 @@ class MyModel(object):
                 return logits
 
             def cal_and_distr(sub_logits1, sub_logits2, c, lambdal=1):
+                """
+                there are two rules:
+                AE: 1(y=Entailment) -> (p1_E V p2_E) ^ (p1_E V p2_E) -> 1(y=E)
+                AC: 1(y=Contradiction) -> (p1_C V p2_C) ^ (p1_C V p2_C) -> 1(y=C)
+                """
                 # for rule in rules:
                 #     if rule == 'AndE':
                 pre_distr = tf.minimum(sub_logits1 + sub_logits1, 1)  # 70x3
@@ -184,26 +190,65 @@ class MyModel(object):
                 r_y0 = c*lambdal* ( 1 - r_AE_y0 - r_AC_y0)  # 70x1
                 r_y1 = c*lambdal* ( 1 - r_AE_y1 - r_AC_y1)  # 70x1
                 r_y2 = c*lambdal* ( 1 - r_AE_y2 - r_AC_y2)  # 70x1
-                print(r_y0,r_y1,r_y2, - tf.concat([r_y0, r_y1, r_y2], axis=0), 2222222)
-                return - tf.concat([r_y0, r_y1, r_y2], axis=1)
+                r_y0 = tf.reshape(r_y0, [r_y0.shape[0], 1])
+                r_y1 = tf.reshape(r_y1, [r_y1.shape[0], 1])
+                r_y2 = tf.reshape(r_y2, [r_y2.shape[0], 1])
+                result = - tf.concat([r_y0, r_y1, r_y2], axis=1)
+                # tuncate
+                #distr_y0 = distr_all[:,0]
+                #distr_y0 = distr_y0.reshape([distr_y0.shape[0], 1])
+                #distr_y0_copies = tf.tile(distr_y0, [1, result.shape[1]])
+                #result -= distr_y0_copies
+                result = tf.maximum(tf.minimum(result, 60.), -60.)
+                return result
+
+            def recover_full(hib, logits, distr):
+                shape = list(distr.shape[1:])
+                result = [tf.ones([hib[0]]+shape)]
+                result.append(tf.reshape(distr[0], [1, distr.shape[1]]))
+                for i in range(1,len(hib)):
+                    hi = hib[i]
+                    result.append(tf.ones([hib[i]-hib[i-1]-1, distr.shape[1]]))
+                    result.append(tf.reshape(distr[i], [1, distr.shape[1]]))
+                result.append(tf.slice(tf.ones_like(logits), [hib[-1], 0], [-1,-1]))
+                result = tf.concat(result, axis=0)
+                return result
 
 
             # construct teacher network output
             q_y_x = self.logits
-            if self.and_index != -1:
-                print(p, self.and_index, 93939393939)
-                #p1 = tf.slice(p, [0, 0, 0], [-1, self.and_index, -1])
-                #p2 = tf.slice(p, [0, self.and_index, 0], [-1, -1, -1])
-                p1 = p
-                p2 = p
-                sub_logits1 = go_through_whole_model(p1, h)
-                sub_logits2 = go_through_whole_model(p2, h)
+            p1 = []
+            p2 = []
+            sub_h = []
+            print(self.and_index, 32)
+            minus_one = tf.Variable(-1)
+            for pairid in range(int(self.and_index.shape[0])):
+                i, j = self.and_index[pairid][0], self.and_index[pairid][1]
+                if not tf.equal(i, minus_one).eval():
+                    hit_index_batch.append(i)
+                    p1_ = tf.slice(p[i], [0,0], [j, -1])
+                    p2_ = tf.slice(p[i], [j,0], [-1, -1])
+                    p1_full = tf.concat([p1_, tf.zeros_like(p2_)], axis=0)
+                    p2_full = tf.concat([p2_, tf.zeros_like(p1_)], axis=0)
+                    p1.append(tf.reshape(p1_full, [1, self.sequence_length, p1_full.shape[-1]]))
+                    p2.append(tf.reshape(p2_full, [1, self.sequence_length, p2_full.shape[-1]]))
+                    sub_h.append(tf.reshape(h[i], [1, self.sequence_length, h[i].shape[-1]]))
+            
+            if hit_index_batch != []:  # means there are data hit rules in this batch
+                #sess = tf.Session()
+                print(hit_index_batch, 33333333333)
+                p1 = tf.concat(p1, axis=0)
+                p2 = tf.concat(p2, axis=0)
+                sub_h = tf.concat(sub_h, axis=0)
+                sub_logits1 = go_through_whole_model(p1, sub_h)
+                sub_logits2 = go_through_whole_model(p2, sub_h)
                 
-                distr = cal_and_distr(sub_logits1, sub_logits2, config.C, config.lambdal)
-                q_y_x = self.logits * tf.exp(distr)
+                distr = tf.exp(cal_and_distr(sub_logits1, sub_logits2, config.C, config.lambdal))
+                distr_full = recover_full(hit_index_batch, self.logits, distr)
+                q_y_x = self.logits * distr_full
 
         # Define the cost function
-        if not config.use_logic:
+        if not config.use_logic or hit_index_batch == []:
             self.total_cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
             self.acc = tf.reduce_mean(tf.cast(tf.equal(tf.arg_max(self.logits, dimension=1),tf.cast(self.y,tf.int64)), tf.float32))
             tf.summary.scalar('acc', self.acc)
@@ -214,8 +259,10 @@ class MyModel(object):
             #tf.summary.scalar('auc_PR', self.auc_PR)
             # calculate acc 
         else:
-            self.total_cost = (1-config.pi)*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
-            self.total_cost += config.pi*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf.arg_max(q_y_x, dimension=1), logits=self.logits))
+            get_pi = lambda x, y: x
+            pi = get_pi(config.pi, self.global_step)
+            self.total_cost = (1-pi)*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
+            self.total_cost += pi*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf.arg_max(q_y_x, dimension=1), logits=self.logits))
             self.acc = tf.reduce_mean(tf.cast(tf.equal(tf.arg_max(self.logits, dimension=1),tf.cast(self.y,tf.int64)), tf.float32))
             tf.summary.scalar('acc', self.acc)
             tf.summary.scalar('loss', self.total_cost)
