@@ -28,7 +28,7 @@ class MyModel(object):
         self.premise_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='premise_dependency')
         self.hypothesis_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='hypothesis_dependency')
 
-        self.and_index = tf.placeholder(tf.int32, [40, 2], name='hit_and_index')
+        self.and_index = tf.placeholder(tf.int32, [None,], name='and_index')
         #self.epoch = tf.placeholder(tf.int32, [1], name='epoch')
         
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -127,7 +127,7 @@ class MyModel(object):
 
         ## main process : interaction + dense net
         def model_one_side(config, main, support, main_length, support_length, main_mask, support_mask, scope):
-            bi_att_mx = bi_attention_mx(config, self.is_train, main, support, p_mask=main_mask, h_mask=support_mask) # [N, PL, HL]
+            bi_att_mx = bi_attention_mx(config, self.is_train, main, support, p_mask=main_mask, h_mask=support_mask, sequence_length=self.sequence_length) # [N, PL, HL]
            
             bi_att_mx = tf.cond(self.is_train, lambda: tf.nn.dropout(bi_att_mx, config.keep_rate), lambda: bi_att_mx)
             out_final = dense_net(config, bi_att_mx, self.is_train)
@@ -149,8 +149,9 @@ class MyModel(object):
         tf.summary.histogram('logit_histogram', self.logits)
 
         ## Hu 2016
-        hit_index_batch = []
         if config.use_logic:
+            minus_one = tf.Variable(-1)
+
             def go_through_whole_model(premise_in, hypothesis_in, config=config, prem_mask=prem_mask, hyp_mask=hyp_mask, pred_size=self.pred_size, is_train=self.is_train):
                 # with tf.variable_scope("highway") as scope:
                 #     premise_in = highway_network(premise_in, config.highway_num_layers, True, wd=config.wd, is_train=self.is_train)    
@@ -172,7 +173,7 @@ class MyModel(object):
                     logits = tf.nn.softmax(logits)
                 return logits
 
-            def cal_and_distr(sub_logits1, sub_logits2, c, lambdal=1):
+            def cal_and_distr(sub_logits1, sub_logits2, c, and_mask, lambdal=1.):
                 """
                 there are two rules:
                 AE: 1(y=Entailment) -> (p1_E V p2_E) ^ (p1_E V p2_E) -> 1(y=E)
@@ -187,12 +188,15 @@ class MyModel(object):
                 r_AC_y1 = (pre_distr[:,2] + 1) / 2
                 r_AE_y2 = r_AE_y1
                 r_AC_y2 = r_AC_y0
-                r_y0 = c*lambdal* ( 1 - r_AE_y0 - r_AC_y0)  # 70x1
-                r_y1 = c*lambdal* ( 1 - r_AE_y1 - r_AC_y1)  # 70x1
-                r_y2 = c*lambdal* ( 1 - r_AE_y2 - r_AC_y2)  # 70x1
-                r_y0 = tf.reshape(r_y0, [r_y0.shape[0], 1])
-                r_y1 = tf.reshape(r_y1, [r_y1.shape[0], 1])
-                r_y2 = tf.reshape(r_y2, [r_y2.shape[0], 1])
+                r_y0 = c*lambdal* ( 1. - r_AE_y0 - r_AC_y0)  # 70x1
+                r_y1 = c*lambdal* ( 1. - r_AE_y1 - r_AC_y1)  # 70x1
+                r_y2 = c*lambdal* ( 1. - r_AE_y2 - r_AC_y2)  # 70x1
+                r_y0 = tf.where(tf.equal(and_mask, -1), tf.zeros_like(r_y0), r_y0)  # mask
+                r_y1 = tf.where(tf.equal(and_mask, -1), tf.zeros_like(r_y1), r_y1)
+                r_y2 = tf.where(tf.equal(and_mask, -1), tf.zeros_like(r_y2), r_y2)
+                r_y0 = tf.reshape(r_y0, [-1, 1])
+                r_y1 = tf.reshape(r_y1, [-1, 1])
+                r_y2 = tf.reshape(r_y2, [-1, 1])
                 result = - tf.concat([r_y0, r_y1, r_y2], axis=1)
                 # tuncate
                 #distr_y0 = distr_all[:,0]
@@ -200,55 +204,84 @@ class MyModel(object):
                 #distr_y0_copies = tf.tile(distr_y0, [1, result.shape[1]])
                 #result -= distr_y0_copies
                 result = tf.maximum(tf.minimum(result, 60.), -60.)
+
                 return result
 
-            def recover_full(hib, logits, distr):
-                shape = list(distr.shape[1:])
-                result = [tf.ones([hib[0]]+shape)]
-                result.append(tf.reshape(distr[0], [1, distr.shape[1]]))
-                for i in range(1,len(hib)):
-                    hi = hib[i]
-                    result.append(tf.ones([hib[i]-hib[i-1]-1, distr.shape[1]]))
-                    result.append(tf.reshape(distr[i], [1, distr.shape[1]]))
-                result.append(tf.slice(tf.ones_like(logits), [hib[-1], 0], [-1,-1]))
-                result = tf.concat(result, axis=0)
-                return result
+            # def recover_full(hib, logits, distr):
+            #     shape = list(distr.shape[1:])
+            #     result = [tf.ones([hib[0]]+shape)]
+            #     result.append(tf.reshape(distr[0], [1, distr.shape[1]]))
+            #     for i in range(1,len(hib)):
+            #         hi = hib[i]
+            #         result.append(tf.ones([hib[i]-hib[i-1]-1, distr.shape[1]]))
+            #         result.append(tf.reshape(distr[i], [1, distr.shape[1]]))
+            #     result.append(tf.slice(tf.ones_like(logits), [hib[-1], 0], [-1,-1]))
+            #     result = tf.concat(result, axis=0)
+            #     return result
 
+            def slice_full(index, p):
+                p1_ = tf.slice(p, [0,0], [index, -1])
+                p2_ = tf.slice(p, [index,0], [-1, -1])
+                p1_full = tf.concat([p1_, tf.zeros_like(p2_)], axis=0)
+                p2_full = tf.concat([p2_, tf.zeros_like(p1_)], axis=0)
+                #p1_full = tf.reshape(p1_full, [-1, self.sequence_length, p1_full.shape[-1]])
+                #p2_full = tf.reshape(p2_full, [-1, self.sequence_length, p2_full.shape[-1]])
+                return p1_full, p2_full
+
+            def two_zero(p):
+                return tf.zeros_like(p), tf.zeros_like(p)
+
+            def slice_it_on(elems):
+                """
+                index : ? x 1
+                p     : ? x 48 x 448
+                h     : ? x 48 x 448
+                since it is map_fn, so ? will be ignored
+                """
+                index, p, h = elems
+                #index = index[0]
+                p1, p2 = tf.cond(tf.equal(index, minus_one), lambda: two_zero(p), lambda: slice_full(index, p))
+                sub_h = tf.cond(tf.equal(index, minus_one), lambda: tf.zeros_like(h), lambda: h)
+                return p1, p2, sub_h
 
             # construct teacher network output
             q_y_x = self.logits
-            p1 = []
-            p2 = []
-            sub_h = []
-            print(self.and_index, 32)
-            minus_one = tf.Variable(-1)
-            for pairid in range(int(self.and_index.shape[0])):
-                i, j = self.and_index[pairid][0], self.and_index[pairid][1]
-                if not tf.equal(i, minus_one).eval():
-                    hit_index_batch.append(i)
-                    p1_ = tf.slice(p[i], [0,0], [j, -1])
-                    p2_ = tf.slice(p[i], [j,0], [-1, -1])
-                    p1_full = tf.concat([p1_, tf.zeros_like(p2_)], axis=0)
-                    p2_full = tf.concat([p2_, tf.zeros_like(p1_)], axis=0)
-                    p1.append(tf.reshape(p1_full, [1, self.sequence_length, p1_full.shape[-1]]))
-                    p2.append(tf.reshape(p2_full, [1, self.sequence_length, p2_full.shape[-1]]))
-                    sub_h.append(tf.reshape(h[i], [1, self.sequence_length, h[i].shape[-1]]))
+
+            p1, p2, sub_h = tf.map_fn(slice_it_on, (self.and_index, p, h), dtype=(tf.float32, tf.float32, tf.float32))
+            sub_logits1 = go_through_whole_model(p1, sub_h)
+            sub_logits2 = go_through_whole_model(p2, sub_h)
+            c = tf.constant(config.C , dtype=tf.float32, shape=[], name='c')
+            lambdal = tf.constant(config.lambdal , dtype=tf.float32, shape=[], name='lambdal')
+            distr = tf.exp(cal_and_distr(sub_logits1, sub_logits2, c, self.and_index, lambdal))
+            q_y_x = q_y_x * distr
+
+            # for pairid in range(int(self.and_index.shape[0])):
+            #     i, j = self.and_index[pairid][0], self.and_index[pairid][1]
+            #     if not tf.equal(i, minus_one).eval():
+            #         hit_index_batch.append(i)
+            #         p1_ = tf.slice(p[i], [0,0], [j, -1])
+            #         p2_ = tf.slice(p[i], [j,0], [-1, -1])
+            #         p1_full = tf.concat([p1_, tf.zeros_like(p2_)], axis=0)
+            #         p2_full = tf.concat([p2_, tf.zeros_like(p1_)], axis=0)
+            #         p1.append(tf.reshape(p1_full, [1, self.sequence_length, p1_full.shape[-1]]))
+            #         p2.append(tf.reshape(p2_full, [1, self.sequence_length, p2_full.shape[-1]]))
+            #         sub_h.append(tf.reshape(h[i], [1, self.sequence_length, h[i].shape[-1]]))
             
-            if hit_index_batch != []:  # means there are data hit rules in this batch
-                #sess = tf.Session()
-                print(hit_index_batch, 33333333333)
-                p1 = tf.concat(p1, axis=0)
-                p2 = tf.concat(p2, axis=0)
-                sub_h = tf.concat(sub_h, axis=0)
-                sub_logits1 = go_through_whole_model(p1, sub_h)
-                sub_logits2 = go_through_whole_model(p2, sub_h)
+            # if hit_index_batch != []:  # means there are data hit rules in this batch
+            #     #sess = tf.Session()
+            #     print(hit_index_batch, 33333333333)
+            #     p1 = tf.concat(p1, axis=0)
+            #     p2 = tf.concat(p2, axis=0)
+            #     sub_h = tf.concat(sub_h, axis=0)
+            #     sub_logits1 = go_through_whole_model(p1, sub_h)
+            #     sub_logits2 = go_through_whole_model(p2, sub_h)
                 
-                distr = tf.exp(cal_and_distr(sub_logits1, sub_logits2, config.C, config.lambdal))
-                distr_full = recover_full(hit_index_batch, self.logits, distr)
-                q_y_x = self.logits * distr_full
+                # distr = tf.exp(cal_and_distr(sub_logits1, sub_logits2, config.C, config.lambdal))
+                # distr_full = recover_full(hit_index_batch, self.logits, distr)
+                # q_y_x = self.logits * distr_full
 
         # Define the cost function
-        if not config.use_logic or hit_index_batch == []:
+        if not config.use_logic:
             self.total_cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
             self.acc = tf.reduce_mean(tf.cast(tf.equal(tf.arg_max(self.logits, dimension=1),tf.cast(self.y,tf.int64)), tf.float32))
             tf.summary.scalar('acc', self.acc)
@@ -259,7 +292,7 @@ class MyModel(object):
             #tf.summary.scalar('auc_PR', self.auc_PR)
             # calculate acc 
         else:
-            get_pi = lambda x, y: x
+            get_pi = lambda x, y: x * 0.9**tf.cast(y/6750, tf.float32)
             pi = get_pi(config.pi, self.global_step)
             self.total_cost = (1-pi)*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
             self.total_cost += pi*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf.arg_max(q_y_x, dimension=1), logits=self.logits))
@@ -505,7 +538,7 @@ class MyModelWn(object):
         with tf.variable_scope("main") as scope:
 
             def model_one_side(config, main, support, main_length, support_length, main_mask, support_mask, scope):
-                bi_att_mx = bi_attention_mx(config, self.is_train, main, support, p_mask=main_mask, h_mask=support_mask, wn_rel=self.wordnet_rel) # [N, PL, HL]
+                bi_att_mx = bi_attention_mx(config, self.is_train, main, support, p_mask=main_mask, h_mask=support_mask, wn_rel=self.wordnet_rel, sequence_length=self.sequence_length) # [N, PL, HL]
                
                 bi_att_mx = tf.cond(self.is_train, lambda: tf.nn.dropout(bi_att_mx, config.keep_rate), lambda: bi_att_mx)
                 out_final = dense_net(config, bi_att_mx, self.is_train, wn_rel=self.wordnet_rel)
@@ -647,9 +680,11 @@ class MyModelWn(object):
         print(total_parameters)
 
 
-def bi_attention_mx(config, is_train, p, h, p_mask=None, h_mask=None, scope=None, wn_rel=None): #[N, L, 2d]
+def bi_attention_mx(config, is_train, p, h, p_mask=None, h_mask=None, scope=None, wn_rel=None, sequence_length=48): #[N, L, 2d]
     with tf.variable_scope(scope or "dense_logit_bi_attention"):
         PL = p.get_shape().as_list()[1]
+        if PL == None:
+            PL = sequence_length
         HL = h.get_shape().as_list()[1]
         p_aug = tf.tile(tf.expand_dims(p, 2), [1,1,HL,1])
         h_aug = tf.tile(tf.expand_dims(h, 1), [1,PL,1,1]) #[N, PL, HL, 2d]
