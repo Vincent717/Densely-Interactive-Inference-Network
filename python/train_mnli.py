@@ -14,6 +14,7 @@ from util.evaluate import *
 from tqdm import tqdm
 import gzip
 import pickle
+import numpy as np
 
 
 FIXED_PARAMETERS, config = params.load_parameters()
@@ -151,6 +152,16 @@ class modelClassifier:
     def get_word_sequence(self, idxs):
         return [indices_to_words.get(i, '') for i in idxs]
 
+    def find_index(self, ls, ind):
+        res = []
+        for i in range(len(ls)):
+            if ind in ls[i]:
+                res.append([i, np.argwhere(ls[i]==ind)[0][0]])
+        res += [[-1,-1]]* (40-len(res))
+        print(res, len(res))
+        return res
+
+
     def get_minibatch(self, dataset, start_index, end_index, training=False, use_wn=False):
         indices = range(start_index, end_index)
 
@@ -193,9 +204,16 @@ class modelClassifier:
             premise_dependency = 1
             hypothesis_dependency = 1
 
+        if config.use_logic:
+            and_dic = word_indices.get('and', -1)
+            and_index = np.array(self.find_index([dataset[i]['sentence1_binary_parse_index_sequence'][:] for i in indices],and_dic))
+        else:
+            and_index = []
+
         return premise_vectors, hypothesis_vectors, labels, genres, premise_pos_vectors, \
                 hypothesis_pos_vectors, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
-                premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, hypothesis_dependency
+                premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, hypothesis_dependency, \
+                and_index
                 
 
 
@@ -269,7 +287,7 @@ class modelClassifier:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
                 premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, \
-                hypothesis_dependency = self.get_minibatch(
+                hypothesis_dependency, and_index = self.get_minibatch(
                     training_data, self.batch_size * i, self.batch_size * (i + 1), True, self.config.use_wn)
                 
                 # Run the optimizer to take a gradient step, and also fetch the value of the 
@@ -292,6 +310,10 @@ class modelClassifier:
                 if self.config.use_depend:
                     feed_dict[self.model.premise_dependency] = premise_dependency
                     feed_dict[self.model.hypothesis_dependency] = hypothesis_dependency
+
+                if self.config.use_logic:
+                    feed_dict[self.model.and_index] = and_index
+                    #feed_dict[self.model.epoch] = self.epoch
 
                 if self.step % self.display_step == 0:
                     _, c, summary, logits = self.sess.run([self.optimizer, self.model.total_cost, self.model.summary, self.model.logits], feed_dict)
@@ -426,13 +448,13 @@ class modelClassifier:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
                 premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, \
-                hypothesis_dependency  = self.get_minibatch(
+                hypothesis_dependency, and_index = self.get_minibatch(
                     examples, self.batch_size * i, self.batch_size * (i + 1), training=False, use_wn=self.config.use_wn)
             else:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
                 premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, \
-                hypothesis_dependency = self.get_minibatch(
+                hypothesis_dependency, and_index = self.get_minibatch(
                     examples, self.batch_size * i, len(examples), training=False, use_wn=self.config.use_wn)
             feed_dict = {self.model.premise_x: minibatch_premise_vectors, 
                                 self.model.hypothesis_x: minibatch_hypothesis_vectors,
@@ -452,6 +474,9 @@ class modelClassifier:
                 feed_dict[self.model.premise_dependency] = premise_dependency
                 feed_dict[self.model.hypothesis_dependency] = hypothesis_dependency
 
+            if self.config.use_logic:
+                feed_dict[self.model.and_index] = and_index
+                #feed_dict[self.model.epoch] = 0
 
             genres += minibatch_genres
             logit, cost = self.sess.run([self.model.logits, self.model.total_cost], feed_dict)
@@ -499,13 +524,13 @@ class modelClassifier:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
                 premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, \
-                hypothesis_dependency = self.get_minibatch(
+                hypothesis_dependency, and_index = self.get_minibatch(
                     examples, self.batch_size * i, self.batch_size * (i + 1), training=False, use_wn=self.config.use_wn)
             else:
                 minibatch_premise_vectors, minibatch_hypothesis_vectors, minibatch_labels, minibatch_genres, \
                 minibatch_pre_pos, minibatch_hyp_pos, pairIDs, premise_char_vectors, hypothesis_char_vectors, \
                 premise_exact_match, hypothesis_exact_match, wordnet_rel, premise_dependency, \
-                hypothesis_dependency = self.get_minibatch(
+                hypothesis_dependency, and_index = self.get_minibatch(
                     examples, self.batch_size * i, len(examples), training=False, use_wn=self.config.use_wn)
             feed_dict = {self.model.premise_x: minibatch_premise_vectors, 
                                 self.model.hypothesis_x: minibatch_hypothesis_vectors,
@@ -525,6 +550,9 @@ class modelClassifier:
                 feed_dict[self.model.premise_dependency] = premise_dependency
                 feed_dict[self.model.hypothesis_dependency] = hypothesis_dependency
 
+            if self.config.use_logic:
+                feed_dict[self.model.and_index] = and_index
+                #feed_dict[self.model.epoch] = self.epoch
 
             logit = self.sess.run(self.model.logits, feed_dict)
             IDs = np.concatenate([IDs, pairIDs])

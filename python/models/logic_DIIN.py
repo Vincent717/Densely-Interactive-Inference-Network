@@ -28,6 +28,8 @@ class MyModel(object):
         self.premise_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='premise_dependency')
         self.hypothesis_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='hypothesis_dependency')
 
+        self.and_index = tf.placeholder(tf.int32, [40, 2], name='hit_and_index')
+        #self.epoch = tf.placeholder(tf.int32, [1], name='epoch')
         
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         
@@ -92,7 +94,9 @@ class MyModel(object):
             scope.reuse_variables()
             hypothesis_in = highway_network(hypothesis_in, config.highway_num_layers, True, wd=config.wd, is_train=self.is_train)
 
-        with tf.variable_scope("prepro") as scope:
+
+        ## self attention process
+        def model_self_attention(config, premise_in, hypothesis_in, prem_mask, hyp_mask):
             pre = premise_in
             hyp = hypothesis_in
             for i in range(config.self_att_enc_layers):
@@ -118,48 +122,150 @@ class MyModel(object):
                         variable_summaries(h, "h_denp_enc_summary_layer_{}".format(i))
             
                 p = tf.concat([p, p1], -1) 
-                h = tf.concat([h, h1], -1) 
+                h = tf.concat([h, h1], -1)
+            return p, h 
 
+        ## main process : interaction + dense net
+        def model_one_side(config, main, support, main_length, support_length, main_mask, support_mask, scope):
+            bi_att_mx = bi_attention_mx(config, self.is_train, main, support, p_mask=main_mask, h_mask=support_mask) # [N, PL, HL]
+           
+            bi_att_mx = tf.cond(self.is_train, lambda: tf.nn.dropout(bi_att_mx, config.keep_rate), lambda: bi_att_mx)
+            out_final = dense_net(config, bi_att_mx, self.is_train)
+            
+            return out_final
+
+        # self attention
+        with tf.variable_scope("prepro") as scope:
+            p, h = model_self_attention(config, premise_in, hypothesis_in, prem_mask, hyp_mask)
+
+        # main
         with tf.variable_scope("main") as scope:
-
-            def model_one_side(config, main, support, main_length, support_length, main_mask, support_mask, scope):
-                bi_att_mx = bi_attention_mx(config, self.is_train, main, support, p_mask=main_mask, h_mask=support_mask) # [N, PL, HL]
-               
-                bi_att_mx = tf.cond(self.is_train, lambda: tf.nn.dropout(bi_att_mx, config.keep_rate), lambda: bi_att_mx)
-                out_final = dense_net(config, bi_att_mx, self.is_train)
-                
-                return out_final
-
             premise_final = model_one_side(config, p, h, prem_seq_lengths, hyp_seq_lengths, prem_mask, hyp_mask, scope="premise_as_main")
             f0 = premise_final
 
-        self.logits = linear(f0, self.pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
+            self.logits = linear(f0, self.pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
                                 is_train=self.is_train)
 
         tf.summary.histogram('logit_histogram', self.logits)
 
+        ## Hu 2016
+        hit_index_batch = []
         if config.use_logic:
+            def go_through_whole_model(premise_in, hypothesis_in, config=config, prem_mask=prem_mask, hyp_mask=hyp_mask, pred_size=self.pred_size, is_train=self.is_train):
+                # with tf.variable_scope("highway") as scope:
+                #     premise_in = highway_network(premise_in, config.highway_num_layers, True, wd=config.wd, is_train=self.is_train)    
+                #     scope.reuse_variables()
+                #     hypothesis_in = highway_network(hypothesis_in, config.highway_num_layers, True, wd=config.wd, is_train=self.is_train)
+
+                # self attention
+                #with tf.variable_scope("prepro") as scope:
+                #    p, h = model_self_attention(config, premise_in, hypothesis_in, prem_mask, hyp_mask)
+
+                p, h = premise_in, hypothesis_in
+                # main
+                with tf.variable_scope("main", reuse=True) as scope:
+                    premise_final = model_one_side(config, p, h, prem_seq_lengths, hyp_seq_lengths, prem_mask, hyp_mask, scope="premise_as_main")
+                    f0 = premise_final
+
+                    logits = linear(f0, pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
+                                        is_train=is_train)
+                    logits = tf.nn.softmax(logits)
+                return logits
+
+            def cal_and_distr(sub_logits1, sub_logits2, c, lambdal=1):
+                """
+                there are two rules:
+                AE: 1(y=Entailment) -> (p1_E V p2_E) ^ (p1_E V p2_E) -> 1(y=E)
+                AC: 1(y=Contradiction) -> (p1_C V p2_C) ^ (p1_C V p2_C) -> 1(y=C)
+                """
+                # for rule in rules:
+                #     if rule == 'AndE':
+                pre_distr = tf.minimum(sub_logits1 + sub_logits1, 1)  # 70x3
+                r_AE_y0 = (pre_distr[:,0] + 1) / 2  # 70x1
+                r_AC_y0 = (2 - pre_distr[:,2]) / 2  # 70x1
+                r_AE_y1 = (2 - pre_distr[:,0]) / 2
+                r_AC_y1 = (pre_distr[:,2] + 1) / 2
+                r_AE_y2 = r_AE_y1
+                r_AC_y2 = r_AC_y0
+                r_y0 = c*lambdal* ( 1 - r_AE_y0 - r_AC_y0)  # 70x1
+                r_y1 = c*lambdal* ( 1 - r_AE_y1 - r_AC_y1)  # 70x1
+                r_y2 = c*lambdal* ( 1 - r_AE_y2 - r_AC_y2)  # 70x1
+                r_y0 = tf.reshape(r_y0, [r_y0.shape[0], 1])
+                r_y1 = tf.reshape(r_y1, [r_y1.shape[0], 1])
+                r_y2 = tf.reshape(r_y2, [r_y2.shape[0], 1])
+                result = - tf.concat([r_y0, r_y1, r_y2], axis=1)
+                # tuncate
+                #distr_y0 = distr_all[:,0]
+                #distr_y0 = distr_y0.reshape([distr_y0.shape[0], 1])
+                #distr_y0_copies = tf.tile(distr_y0, [1, result.shape[1]])
+                #result -= distr_y0_copies
+                result = tf.maximum(tf.minimum(result, 60.), -60.)
+                return result
+
+            def recover_full(hib, logits, distr):
+                shape = list(distr.shape[1:])
+                result = [tf.ones([hib[0]]+shape)]
+                result.append(tf.reshape(distr[0], [1, distr.shape[1]]))
+                for i in range(1,len(hib)):
+                    hi = hib[i]
+                    result.append(tf.ones([hib[i]-hib[i-1]-1, distr.shape[1]]))
+                    result.append(tf.reshape(distr[i], [1, distr.shape[1]]))
+                result.append(tf.slice(tf.ones_like(logits), [hib[-1], 0], [-1,-1]))
+                result = tf.concat(result, axis=0)
+                return result
+
+
             # construct teacher network output
             q_y_x = self.logits
-            if self.hit_and_rule:
-                p1, p2 = p[:self.and_ind], p[self.and_ind+1]
-                sub_logit1 = whole_model(p1, h)
-                sub_logit2 = whole_model(p2, h)
+            p1 = []
+            p2 = []
+            sub_h = []
+            print(self.and_index, 32)
+            minus_one = tf.Variable(-1)
+            for pairid in range(int(self.and_index.shape[0])):
+                i, j = self.and_index[pairid][0], self.and_index[pairid][1]
+                if not tf.equal(i, minus_one).eval():
+                    hit_index_batch.append(i)
+                    p1_ = tf.slice(p[i], [0,0], [j, -1])
+                    p2_ = tf.slice(p[i], [j,0], [-1, -1])
+                    p1_full = tf.concat([p1_, tf.zeros_like(p2_)], axis=0)
+                    p2_full = tf.concat([p2_, tf.zeros_like(p1_)], axis=0)
+                    p1.append(tf.reshape(p1_full, [1, self.sequence_length, p1_full.shape[-1]]))
+                    p2.append(tf.reshape(p2_full, [1, self.sequence_length, p2_full.shape[-1]]))
+                    sub_h.append(tf.reshape(h[i], [1, self.sequence_length, h[i].shape[-1]]))
+            
+            if hit_index_batch != []:  # means there are data hit rules in this batch
+                #sess = tf.Session()
+                print(hit_index_batch, 33333333333)
+                p1 = tf.concat(p1, axis=0)
+                p2 = tf.concat(p2, axis=0)
+                sub_h = tf.concat(sub_h, axis=0)
+                sub_logits1 = go_through_whole_model(p1, sub_h)
+                sub_logits2 = go_through_whole_model(p2, sub_h)
                 
-
-            distr = 
-
+                distr = tf.exp(cal_and_distr(sub_logits1, sub_logits2, config.C, config.lambdal))
+                distr_full = recover_full(hit_index_batch, self.logits, distr)
+                q_y_x = self.logits * distr_full
 
         # Define the cost function
-        self.total_cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
-        self.acc = tf.reduce_mean(tf.cast(tf.equal(tf.arg_max(self.logits, dimension=1),tf.cast(self.y,tf.int64)), tf.float32))
-        tf.summary.scalar('acc', self.acc)
-        tf.summary.scalar('loss', self.total_cost)
-        #self.auc_ROC = tf.metrics.auc(tf.cast(self.y,tf.int64), tf.arg_max(self.logits, dimension=1), curve = 'ROC')
-        #self.auc_PR =  tf.metrics.auc(tf.cast(self.y,tf.int64), tf.arg_max(self.logits, dimension=1), curve = 'PR')
-        #tf.summary.scalar('auc_ROC', self.auc_ROC)
-        #tf.summary.scalar('auc_PR', self.auc_PR)
-        # calculate acc 
+        if not config.use_logic or hit_index_batch == []:
+            self.total_cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
+            self.acc = tf.reduce_mean(tf.cast(tf.equal(tf.arg_max(self.logits, dimension=1),tf.cast(self.y,tf.int64)), tf.float32))
+            tf.summary.scalar('acc', self.acc)
+            tf.summary.scalar('loss', self.total_cost)
+            #self.auc_ROC = tf.metrics.auc(tf.cast(self.y,tf.int64), tf.arg_max(self.logits, dimension=1), curve = 'ROC')
+            #self.auc_PR =  tf.metrics.auc(tf.cast(self.y,tf.int64), tf.arg_max(self.logits, dimension=1), curve = 'PR')
+            #tf.summary.scalar('auc_ROC', self.auc_ROC)
+            #tf.summary.scalar('auc_PR', self.auc_PR)
+            # calculate acc 
+        else:
+            get_pi = lambda x, y: x
+            pi = get_pi(config.pi, self.global_step)
+            self.total_cost = (1-pi)*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
+            self.total_cost += pi*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf.arg_max(q_y_x, dimension=1), logits=self.logits))
+            self.acc = tf.reduce_mean(tf.cast(tf.equal(tf.arg_max(self.logits, dimension=1),tf.cast(self.y,tf.int64)), tf.float32))
+            tf.summary.scalar('acc', self.acc)
+            tf.summary.scalar('loss', self.total_cost)
         
         # L2 Loss
         if config.l2_loss:
@@ -187,10 +293,12 @@ class MyModel(object):
             #    if tensor.name.endswith("weights:0") or tensor.name.endswith('kernel:0')]) 
             
             def cal_exactly_one_loss(logits):
-                return -tf.log(tf.add_n([logits[0]*(1-logits[1])*(1-logits[2]),
-                                  logits[1]*(1-logits[0])*(1-logits[2]),
-                                  logits[2]*(1-logits[0])*(1-logits[1]),
-                                ]))
+                #semantic_loss = tf.Variable(tf.zeros([], dtype=np.float32), name='semantic_loss_term')
+
+                return tf.reduce_sum(-tf.log(logits[:,0]*(1-logits[:,1])*(1-logits[:,2]) +
+                               logits[:,1]*(1-logits[:,0])*(1-logits[:,2]) +
+                               logits[:,2]*(1-logits[:,0])*(1-logits[:,1])
+                                ))
 
             def cal_logic_rules_loss(rules, logits):
                 def cal_logic_rule(ro, ls):
@@ -202,10 +310,11 @@ class MyModel(object):
                         return ls[2]*(1-ls[0])*(1-ls[1])
                 return -tf.log(tf.add_n([cal_logic_rule(rule_output, logits) for rule_output in rules]))
 
-            semantic_loss = cal_logic_rules_loss(self.rules_output, self.logits)
+            #semantic_loss = cal_logic_rules_loss(self.rules_output, self.logits)
             if config.use_exactly_one:
-                semantic_loss += cal_exactly_one_loss(self.logits)
-            semantic_loss = semantic_loss * tf.constant(config. semantic_regularization_ratio , dtype='float', shape=[], name='semantic_regularization_ratio')
+                semantic_loss = cal_exactly_one_loss(self.logits)
+            semantic_loss = tf.reduce_mean(semantic_loss)
+            semantic_loss = semantic_loss * tf.constant(config.semantic_regularization_ratio , dtype='float', shape=[], name='semantic_regularization_ratio')
             tf.summary.scalar('semantic loss', semantic_loss)
             self.total_cost += semantic_loss
 
@@ -296,6 +405,10 @@ class MyModelWn(object):
         self.wordnet_rel = tf.placeholder(tf.float32, [None, self.sequence_length, self.sequence_length, 5], name='wordnet_rel')
         self.premise_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='premise_dependency')
         self.hypothesis_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='hypothesis_dependency')
+
+        self.and_index = tf.placeholder(tf,int32, [None, 1], name='and_index')
+        self.epoch = tf.placeholder(tf,int32, [1], name='epoch')
+
 
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         
@@ -446,10 +559,12 @@ class MyModelWn(object):
             #    if tensor.name.endswith("weights:0") or tensor.name.endswith('kernel:0')]) 
             
             def cal_exactly_one_loss(logits):
-                return -tf.log(tf.add_n([logits[0]*(1-logits[1])*(1-logits[2]),
-                                  logits[1]*(1-logits[0])*(1-logits[2]),
-                                  logits[2]*(1-logits[0])*(1-logits[1]),
-                                ]))
+                #semantic_loss = tf.Variable(tf.zeros([], dtype=np.float32), name='semantic_loss_term')
+
+                return tf.reduce_sum(-tf.log(logits[:,0]*(1-logits[:,1])*(1-logits[:,2]) +
+                               logits[:,1]*(1-logits[:,0])*(1-logits[:,2]) +
+                               logits[:,2]*(1-logits[:,0])*(1-logits[:,1])
+                                ))
 
             def cal_logic_rules_loss(rules, logits):
                 def cal_logic_rule(ro, ls):
@@ -461,10 +576,11 @@ class MyModelWn(object):
                         return ls[2]*(1-ls[0])*(1-ls[1])
                 return -tf.log(tf.add_n([cal_logic_rule(rule_output, logits) for rule_output in rules]))
 
-            semantic_loss = cal_logic_rules_loss(self.rules_output, self.logits)
+            #semantic_loss = cal_logic_rules_loss(self.rules_output, self.logits)
             if config.use_exactly_one:
-                semantic_loss += cal_exactly_one_loss(self.logits)
-            semantic_loss = semantic_loss * tf.constant(config. semantic_regularization_ratio , dtype='float', shape=[], name='semantic_regularization_ratio')
+                semantic_loss = cal_exactly_one_loss(self.logits)
+            semantic_loss = tf.reduce_mean(semantic_loss)
+            semantic_loss = semantic_loss * tf.constant(config.semantic_regularization_ratio , dtype='float', shape=[], name='semantic_regularization_ratio')
             tf.summary.scalar('semantic loss', semantic_loss)
             self.total_cost += semantic_loss
 

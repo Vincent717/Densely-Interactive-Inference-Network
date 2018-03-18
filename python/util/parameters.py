@@ -12,7 +12,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 
-models = ['attmix_CNN', "DIIN"]
+models = ['attmix_CNN', "DIIN", "logic_DIIN"]
 def types(s):
     options = [mod for mod in models if s in models]
     if len(options) == 1:
@@ -194,7 +194,17 @@ pa("--dependency_logit_func", type=str, default="sum", help='dependency logit fu
 pa("--dependency_hidden_size", type=int, default=32, help='dependency layer hidden size') ##
 pa("--use_more_interaction", action='store_true', help='add dependency information to training')
 
+## semantic loss
+pa("--semantic_loss", action='store_true', help='have semantic loss') ##
+pa("--use_exactly_one", action='store_true', help='use exactly one rule semantic loss') ##
+pa("--semantic_regularization_ratio", type=float, default=9e-5, help='semantic regularization ratio') ##
 
+## harnessing logic rules
+pa("--use_logic", action='store_true', help='have logic rules') ##
+pa("--pi", type=float, default=0.1, help='initial logic rules imitation ratio') ##
+pa("--C", type=float, default=400, help='rule regularization') ##
+pa("--lambdal", type=float, default=1, help='semantic regularization ratio') ##
+#pa()
 
 
 args = parser.parse_args()
