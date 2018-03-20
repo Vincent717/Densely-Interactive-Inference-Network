@@ -1,0 +1,308 @@
+\documentclass[UTF8,11pt,a4paper,nofonts]{ctexart}
+
+\usepackage{geometry}
+\usepackage{times}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathrsfs}
+\usepackage{fancyvrb, color} 
+\usepackage{latexsym} 
+\usepackage{ulem} 
+\usepackage{ntheorem}
+\usepackage{tocloft}
+
+% picture
+\usepackage{graphicx}
+
+% table
+\usepackage{longtable}
+
+% underline
+
+%\usepackage[normalem]{ulem}
+
+
+\pagestyle{plain}
+
+
+\setCJKmainfont[ItalicFont={AR PL UKai CN}]{AR PL UMing CN} %设置中文默认字体
+\setCJKsansfont{Source Han Sans CN}
+\setCJKmonofont{Source Han Serif CN}
+
+\CTEXsetup[format={\raggedright\zihao{4}\heiti}]{section}
+\CTEXsetup[format={\raggedright\zihao{-4}\heiti}]{subsection}
+\CTEXsetup[format={\raggedright\zihao{-4}\heiti}]{subsubsection}
+
+
+\theoremheaderfont{\bfseries}
+\theorembodyfont{\normalfont}
+\newtheorem{definition}{定义}
+\newtheorem{thm}{定理}
+\newtheorem{property}{性质}
+\newtheorem{proposition}{命题}
+\newtheorem{lemma}{引理}
+\newtheorem{corollary}{推论}
+\newtheorem{conclusion}{结论}
+\newtheorem{condition}{条件}
+{  %证明的格式单独设置
+ \theoremstyle{nonumberplain}  %无编号
+ \newtheorem{proof}{证明}
+}
+
+%设置目录以及摘要的格式
+\renewcommand{\contentsname}{目录}  
+\setlength\cftparskip{1ex}
+\renewcommand\cftdot{…}
+\renewcommand{\cftdotsep}{0}
+  
+\renewcommand{\abstractname}{摘要} 
+\newcommand{\enabstractname}{{\zihao{-4}【Abstract】}}
+\newcommand{\cnabstractname}{{\heiti\zihao{5}【摘要】}}
+\newenvironment{enabstract}{%
+  \par\small
+  \noindent\mbox{}\hfill{\bfseries \enabstractname}\hfill\mbox{}\par
+  \vskip 1ex}{\par\vskip 1ex}
+\newenvironment{cnabstract}{%
+  \par\small
+  \noindent\mbox{}\hfill{\cnabstractname}\hfill\mbox{}\par
+  \vskip 1ex}{\par\vskip 1ex}
+
+%设置参考文献的格式
+\bibliographystyle{plain}
+
+%标题
+\title{\zihao{3}\textbf{融合外部知识的自然语言推理研究}}
+\date{\quad}
+\author{\vspace{-0.5em}\zihao{-4}{黄文冠\\ 指导老师：}\\ 
+\author{\vspace{-0.5em}\zihao{-4}{\kaishu鲜于波}\\ 
+\vspace{-0.5em}\zihao{5}中山大学哲学系\\
+\zihao{5}huangwg3@mail2.sysu.edu.cn\\
+}
+
+
+%%%%%%%%%%%%%%%%
+\begin{document}
+
+\setlength{\parskip}{0pt}
+\linespread{1.6}
+
+\maketitle
+\thispagestyle{empty}
+
+
+%中英文摘要 
+\begin{cnabstract}
+{\zihao{5}\CJKfamily{kai}
+
+
+
+认知智能的一个重要方面是对语言的理解和使用，其中基于自然语言的推理尤为重要，可以认为是一个通向人工智能的必要问题。近年来一些基于概率模型、神经网络的研究方法取得了惊人的效果。这类方法的推理模式和能力是通过训练数据学习得到。推理知识是否可以完全通过训练数据习得，以及已有的人类常识知识是否能对系统有所帮助?本篇论文试图探讨外部知识以及一些逻辑规则这些形式化知识是否可以融合到现有的连续的模型当中，并提高其性能。本文将三种知识融合到了自然语言推理模型当中：外部知识、语言学知识以及逻辑知识。具体的，我们从WordNet中获取词语对之间的语义关系；以及语句中词语的语言学依存关系，表示成离散向量，结合到词语语义表示中进行训练。并将逻辑知识通过损失函数的形式融合到模型之中。我们在Multi-NLI以及SNLI数据集上进行了测试，达到了不错的效果。
+
+}\\
+\textbf{{\zihao{5}【关键词】：}}{\CJKfamily{kai}自然语言推理、外部知识、逻辑知识}
+\end{cnabstract}
+%\vspace{4ex}
+
+\newpage
+\begin{enabstract}
+{\zihao{-4} The semantic Representation of a text is a fundamental part of many Natural Language Processing tasks. Tasks such as text classification and question answering normally need to map text into vector space before computing them. Currently, most works of semantic representation are focused on supervised learning. One of the drawbacks is that it requires a huge set of labelled data as training data. To make it worse, the representations it got are domain specific, and not general enough to be leveraged on other tasks. In this paper, We purpose an unsupervised method for learning semantic representation. Specifically, our model is based on sequential denoising autoencoder architecture. Before encoding the text by a Bi-directional LSTM with attention mechanism, we use a nosing function to add some noise on it; after that, we decode its matrix-like semantic representation by a max-pooling LSTM decoder. We apply our method on a topic analysis task, and get a promising result.}\\
+\textbf{{\zihao{-4}【Keywords】:}}Semantic Representation;\ \ Unsupervised Learning;\ \ Sequential Denoising Autoencoder
+\end{enabstract}
+
+\newpage
+%\ \\
+\thispagestyle{empty}
+%双面打印空白页
+\newpage
+%目录
+\tableofcontents
+\thispagestyle{empty}
+
+%\newpage
+%\ \\
+%\thispagestyle{empty}
+%双面打印空白页
+\newpage
+%正文
+\section{绪论}
+
+% 背景
+\subsection{研究背景}
+\par 如今人工智能已经在人们的生活中充当着不可或缺的角色，我们希望计算机能够更加聪明和智能，理解对话和文章懂得人们的想法。然而“语言的含义”是一个不易把握的概念，也是一个哲学和语言学不断在讨论的话题。想要让计算机理解自然语言，一种自然的想法是将自然语言的含义表示为一种计算机可操作的形式，譬如公式，向量，甚至队列，和树等。从而，计算机可以通过演算来模拟语言的理解、推理甚至生成。
+
+% 为什么需要这样的工作
+
+% 综述一下已有工作，以及问题
+
+
+% 我的模型
+为了解决上述问题，本文提出了一种无监督的语句语义表示的学习方法。具体的，我们利用序列除噪音自动编码器（Sequential Denoising Autoencoder）的思想，认为一句话如果能够在编码后，通过编码不失真的解压出原文本，那可以认为该编码保留了这句话的绝大部分信息。在我们的模型中，我们先对语句随机增加噪音，作为输入样本进行编码，并将原语句作为目标输出，以训练编码解码模型。同时，因为考虑到一句话的意义可能分布在这句话的多个点上，所以我们认为单单使用一个向量来表示语句语义是不足够的，因而不同于此前的大部分工作，我们采用矩阵的形式来表示语句意义。效法\cite{lin2017structured}的工作，我们引入了注意力机制（attention mechanism），令语句的矩阵表示的每一行都是对语句的一种注意力的结果。简单来说，矩阵中的每一行的向量聚焦在表示一句话的不同的语义重点上，这样可以最大程度的捕捉一句话的含义。譬如在语句“我今天起晚了，早餐也吃得晚，所以现在还不饿”中，值得注意的几个地方为“起晚”，“不饿”，这些词语对语句语义的重要性要比其他的词语大，因而两种注意力将分别聚焦在这两个词语即其附件。注意力机制的目的是企图刻画这种每个词语之间语义信息含量不相等的性质。因而该方法既可以获取整段文本的语义，不丢失语义信息，同时又能将重点放在重要的词语上。
+%% 例子 比如说，在 “我今天起晚了，早餐也吃得晚，所以现在还不饿”这句话中，
+%% 我们方法的优势
+
+最后，我们使用文本主题分析的任务来检验模型的有效性。我们使用该模型在上海证券交易所2016年的上市公司公告中查找特定主题的公司，该方法相较传统的方法和先进方法都有较好的表现。
+
+%% 实验 我们分别进行了中文英文语料的两种实验。
+
+\subsection{动机和贡献}
+
+\subsection{论文结构}
+本文将分析比较现有的语义表示技术，挖掘他们的优势，探索他们的缺点。并在这基础上提出我们自己的无监督学习模型。第二章将着重分析基于神经网络的语义表示和无监督语义表示技术的现状；第三章将描述我们的模型架构；第四章会给出一些对各个模型在文本主题分析任务上的对比实验；并在最后一章进行总结，及提出未来工作展望。
+
+%获取语句的语义表示，从一百年前Freg\cite{freg}已有过这样的尝试。
+
+\section{相关工作}
+
+在许多自然语言处理的任务中，文本表示都是很重要的基础步骤。最常用的传统文本表示方法是提取文本特征。如n-gram\cite{Lin2003Automatic}，TFIDF\cite{Soucy2005Beyond}，pLSA\cite{Hofmann2001Unsupervised}，
+LDA\cite{Blei2003Latent}等方法，都可以理解为用来筛选文本特征的。这些技术都基于词袋模型的假设，即假设一段文本是一个装满了词语的袋子。虽然词袋模型很简单高效，但是它没法考虑上下文信息，以及文本中的词序信息，所以学者提出了许多基于神经网络的语言模型。
+
+\subsection{基于经典逻辑的推理方法}
+
+\textit{递归神经网络(recursive neural network)} Socher \cite{socher2013recursive} 提出
+
+\subsection{基于神经网络的自然语言推理方法}
+Mikovo
+\subsection{结合外部知识的方法}
+
+\subsubsection{知识库}
+
+\subsubsection{语言学知识}
+
+\subsubsection{逻辑规则}
+
+
+\section{模型}
+
+\subsection{基本模型}
+
+这一节将具体描述本文提出的基于自动除噪编码器架构的模型。对于一个长度为$n$的语句$S=\langle w_1,w_2,\cdots,w_n\rangle$，其中$w_i$表示句子中的词语，每个词语是一个$d$维的向量，因而语句可以表示为$n*d$维的矩阵。我们的目标将$S$作为输入，而获得一个固定大小为$r\times u$维的矩阵，作为语句的语义表示。具体的，整个模型由两部分组成：编码器和解码器。其中编码器的输入为加噪后的文本，输出为文本的语义表示矩阵$M$；解码器的输入为语义矩阵$M$，解码的目标输出是原文本。具体的神经网络结构图如图1所示。
+
+%\begin{table}[htbp]
+\begin{figure}
+\centering
+\includegraphics[width=0.69\linewidth]{model_encoder_decoder}
+\caption{序列除噪自动编码器的模型示意图}\label{fig:01}
+\end{figure} 
+%\end{table}
+
+\subsection{外部知识}
+
+我们采用双向LSTM隐藏层加上注意力机制的神经网络架构。具体的，对于一个输入文本$S=\langle w_1,w_2,\cdots,w_n \rangle$，我们使用两个LSTM隐藏层，分别从开头和结尾两端进行文本循环。我们用$\overleftarrow{h_t}$和$\overrightarrow{h_t}$分别表示从前往后和从后往前两个方向在时刻$t$的隐藏层变量，他们的更新公式如下：
+
+%equation for lstm
+\begin{equation}
+\overleftarrow{z_t} = \sigma(\overleftarrow{W_z} \cdot [\overleftarrow{h_{t-1}},w_t])
+\end{equation}
+
+
+\subsection{依存关系知识}
+
+
+\subsection{逻辑规则}
+
+
+
+% 讨论如何训练
+\subsection{模型训练}
+
+该模型一共有以下权值需要训练：
+$\overleftarrow{W_z}, \overleftarrow{W}, \overleftarrow{W_r}, \overrightarrow{W_z}, \overrightarrow{W}, \overrightarrow{W_r},W_z, W_r, W, W_{s1}, W_{s2}$,其中前面6个分别为编码器两个方向的LSTM层的权值，中间三个为解码器的LSTM层的权值，最后两个为注意力机制的权值。
+
+
+
+\section{实验}
+
+我们将通过注意力机制检验和主题分析实验来测试模型的性能。主题分析实验为给定一个主题词，要求从文本集中找到与该主题有关的文本。我们通过每一个文本的语义表示
+
+
+%\begin{table}[htbp]
+\begin{figure}
+\centering
+\includegraphics[width=0.95\linewidth]{attention}
+\caption{注意力机制效果示意}\label{fig:02}
+\end{figure} 
+%\end{table}
+
+
+
+\subsection{主题分析}
+
+
+以下是各个方法的在每个主题词下计算出的最相关的5个文档：
+
+
+\begin{longtable}{|p{5 em}|l|l|l|}
+\hline
+Method & 人工智能 & 教育 & 制造业 \\
+\hline
+%\multirow{5}{*}{Multi-Row} &
+%\multicolumn{2}{c|}{Multi-Column} &
+%\multicolumn{2}{c|}{\multirow{2}{*}{Multi-Row and Col}} \\
+%\cline{2-3}
+ & 宁波三星医疗电气 & 吉视传媒 & 新疆雪峰科技 \\ 
+ & 远东智慧能源股份 & 上海宝信软件 &  上海电气集团\\ 
+TF-IDF & 南京音飞储存设备 & 江苏省广电有线信息网络 & 航天时代电子技术 \\ 
+ & 曙光信息产业 & 安徽新华传媒 & 上海晨光文具 \\  
+ & 重庆川仪自动化 & 江苏凤凰出版传媒 & 中材节能 \\ 
+\hline
+ & 南威软件 & 中南出版传媒集团 & 国投电力控股 \\ 
+ & 九州通医药集团 & 九州通医药集团 & 沈阳桃李面包 \\ 
+Word2vec & 华电重工 & 吉视传媒 & 航天时代电子技术 \\ 
+ & 曲美家居集团 & 安徽新华传媒 & 江苏汇鸿国际集团 \\  
+ & 吉视传媒 & 新华文轩出版传媒 & 新疆雪峰科技\\ 
+\hline
+ & 南威软件 & 中南出版传媒集团 & 国投电力控股 \\ 
+ & 江苏省广电有线信息网络 & 江苏省广电有线信息网络 & 沈阳桃李面包 \\ 
+TF-IDF +  & 南京音飞储存设备 & 南京音飞储存设备 & 新城控股集团 \\ 
+Word2vec & 上海宝信软件 & 江苏凤凰出版传媒 & 上海晨光文具 \\  
+ & 江苏凤凰出版传媒 & 安徽新华传媒 & 上海电气集团 \\ 
+\hline
+ & 华锐风电科技(集团) & 中国核能电力 & 中信重工机械 \\ 
+ & 南威软件 & 江苏凤凰出版传媒 & 上海机电 \\ 
+LDA & 际华集团 & 中南出版传媒集团 & 中国船舶重工 \\ 
+ & 曙光信息产业 & 读者出版传媒 & 安徽四创电子 \\  
+ & 上海宝信软件 & 中国核工业建设 & 上海电气集团 \\ 
+\hline
+ & 北京四方继保自动化 & 中信银行 & 北京银行 \\ 
+ & 吉视传媒 & 交通銀行 & 金堆城钼业 \\ 
+Paragraph & 华电重工 & 重庆水务集团 & 紫金矿业集团 \\ 
+ Vector & 隆鑫通用动力 & 通化东宝药业 & 常熟风范电力设备 \\  
+ & 江苏省广电有线信息网络 & 中国中车 & 北京昊华能源  \\ 
+\hline
+ & 中炬高新技术实业 & 吉视传媒 & 黑龙江珍宝岛药业 \\ 
+ & 湖南百利工程科技 & 引力传媒 & 佛山市海天调味食品 \\ 
+Denoising & 北京高能时代环境技术 & 广州广日 & 山东华鹏玻璃 \\ 
+Autoencoder & 宁波弘讯科技 & 南方出版传媒 & 华电重工 \\  
+ & 北矿科技 & 招商证券 & 宁波弘讯科技 \\ 
+\hline
+\caption{各个方法在三个关键词下获取的公告所属公司比较}\label{tbl:01}
+\end{longtable}
+
+\subsubsection{误差分析}
+相似度。
+
+
+
+
+%\addcontentsline{toc}{section}{结论}
+\section{结论}
+
+本文提出了一种基于序列除噪自动编码器思想的无监督文本语义学习方法，既可以学习短语句的语义表示，也可以简单推广到长文本的语义表示获取。我们采用带有注意力机制的双向LSTM作为编码器，获得固定结构的矩阵表示。然后经过最大化池化，得到的向量被放入一个seq2seq的LSTM解码器中，目标输出是原文本。这样的学习方法不需要大量的标注数据，而且生成的语义表示可以被使用在多种自然语言处理任务中。
+
+
+\section{致谢}
+
+很感谢中山大学数学学院能提供机会给我们这些身在其他院系，但内心却也对数学有一颗炙热的心的同学，让我们也能一略数学之美。
+由衷的感谢黄志洪老师在毕业论文上对我的指导；更加感谢他在数据挖掘，机器学习领域上对我的启蒙，让我找到振奋人心而值得交付未来的事情。
+也感谢天河二号超级计算中心对本篇论文提供的计算资源，以及梁汉全工程师在使用过程中给予我的耐心的帮助。
+还要我的父母，多年来含辛茹苦，在经济上精神上不遗余力的给予我支持，没有他们，就没有我。
+行文至此，我的数学学位修读终于要添上一个重彩浓墨的句号，不过，我在漫漫数学之旅上还只是刚刚在起点。
+
+
+\newpage
+\addcontentsline{toc}{section}{参考文献}
+\bibliography{rangevoting}
+
+
+\end{document}
+
