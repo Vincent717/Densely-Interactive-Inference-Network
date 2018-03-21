@@ -471,7 +471,8 @@ class MyModelWn(object):
             scope.reuse_variables()
             hypothesis_in = highway_network(hypothesis_in, config.highway_num_layers, True, wd=config.wd, is_train=self.is_train)
 
-        with tf.variable_scope("prepro") as scope:
+        ## self attention process
+        def model_self_attention(config, premise_in, hypothesis_in, prem_mask, hyp_mask):
             pre = premise_in
             hyp = hypothesis_in
             for i in range(config.self_att_enc_layers):
@@ -482,7 +483,7 @@ class MyModelWn(object):
                     hyp = h
                     variable_summaries(p, "p_self_enc_summary_layer_{}".format(i))
                     variable_summaries(h, "h_self_enc_summary_layer_{}".format(i))
-            
+          
             if config.use_depend:
                 pre1 = p
                 hyp1 = h
@@ -497,25 +498,29 @@ class MyModelWn(object):
                         variable_summaries(h, "h_denp_enc_summary_layer_{}".format(i))
             
                 p = tf.concat([p, p1], -1) 
-                h = tf.concat([h, h1], -1) 
-                
-                
+                h = tf.concat([h, h1], -1)
+            return p, h 
+
+        ## main process : interaction + dense net
+        def model_one_side(config, main, support, main_length, support_length, main_mask, support_mask, scope):
+            bi_att_mx = bi_attention_mx(config, self.is_train, main, support, p_mask=main_mask, h_mask=support_mask, sequence_length=self.sequence_length) # [N, PL, HL]
+           
+            bi_att_mx = tf.cond(self.is_train, lambda: tf.nn.dropout(bi_att_mx, config.keep_rate), lambda: bi_att_mx)
+            out_final = dense_net(config, bi_att_mx, self.is_train)
+            
+            return out_final
+
+
+        # self attention
+        with tf.variable_scope("prepro") as scope:
+            p, h = model_self_attention(config, premise_in, hypothesis_in, prem_mask, hyp_mask)
+            
+        # main
         with tf.variable_scope("main") as scope:
-
-            def model_one_side(config, main, support, main_length, support_length, main_mask, support_mask, scope):
-                bi_att_mx = bi_attention_mx(config, self.is_train, main, support, p_mask=main_mask, h_mask=support_mask, wn_rel=self.wordnet_rel, sequence_length=self.sequence_length) # [N, PL, HL]
-               
-                bi_att_mx = tf.cond(self.is_train, lambda: tf.nn.dropout(bi_att_mx, config.keep_rate), lambda: bi_att_mx)
-                out_final = dense_net(config, bi_att_mx, self.is_train, wn_rel=self.wordnet_rel)
-                
-                return out_final
-
-
-
             premise_final = model_one_side(config, p, h, prem_seq_lengths, hyp_seq_lengths, prem_mask, hyp_mask, scope="premise_as_main")
             f0 = premise_final
 
-        self.logits = linear(f0, self.pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
+            self.logits = linear(f0, self.pred_size ,True, bias_start=0.0, scope="logit", squeeze=False, wd=config.wd, input_keep_prob=config.keep_rate,
                                 is_train=self.is_train)
 
         tf.summary.histogram('logit_histogram', self.logits)
