@@ -404,8 +404,8 @@ class MyModelWn(object):
         self.premise_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='premise_dependency')
         self.hypothesis_dependency = tf.placeholder(tf.int32, [None, self.sequence_length, config.depend_size], name='hypothesis_dependency')
 
-        self.and_index = tf.placeholder(tf,int32, [None, 1], name='and_index')
-        self.epoch = tf.placeholder(tf,int32, [1], name='epoch')
+        self.and_index = tf.placeholder(tf.int32, [None,], name='and_index')
+        #self.epoch = tf.placeholder(tf,int32, [1], name='epoch')
 
 
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
