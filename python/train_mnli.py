@@ -209,9 +209,8 @@ class modelClassifier:
             hypothesis_dependency = 1
 
         if config.use_logic:
-            and_words = [',', 'and']
+            and_words = [',', '.', 'and', 'or']
             and_dics = [word_indices.get(w, -1) for w in and_words] 
-            comma_dic
             #and_index = np.array(self.find_index([dataset[i]['sentence1_binary_parse_index_sequence'][:] for i in indices],and_dic))
             and_index = np.array([self.find_index(dataset[i]['sentence1_binary_parse_index_sequence'][:], and_dics) for i in indices])
         else:
@@ -329,12 +328,15 @@ class modelClassifier:
                 else:
                     _, c, logits = self.sess.run([self.optimizer, self.model.total_cost, self.model.logits], feed_dict)
 
-
                 if self.step % self.eval_step == 0:
                     if config.training_completely_on_snli and self.dont_print_unnecessary_info:
                         dev_acc_mat = dev_cost_mat = 1.0
                     else:
-                        dev_acc_mat, dev_cost_mat, confmx = evaluate_classifier(self.classify, dev_mat, self.batch_size)
+                        if self.config.use_logic:
+                            dev_acc_mat, q_dev_acc_mat, dev_cost_mat, confmx = evaluate_classifier(self.classify, dev_mat, self.batch_size, q=True)
+                        else:
+                            dev_acc_mat, dev_cost_mat, confmx = evaluate_classifier(self.classify, dev_mat, self.batch_size)
+                            q_dev_acc_mat = -1
                         logger.Log("Confusion Matrix on dev-matched\n{}".format(confmx))
                     
                     if config.training_completely_on_snli:
@@ -358,9 +360,13 @@ class modelClassifier:
                             strain_acc, strain_cost,_ = evaluate_classifier(self.classify, train_snli[0:5000], self.batch_size)
                         else:
                             strain_acc, strain_cost = 0, 0
+                        if dev_acc_mat_q != -1:
+                            logger.Log("Q Dev-matched acc: %f" % dev_acc_mat_q)
                         logger.Log("Step: %i\t Dev-matched acc: %f\t Dev-mismatched acc: %f\t Dev-SNLI acc: %f\t MultiNLI train acc: %f\t SNLI train acc: %f" %(self.step, dev_acc_mat, dev_acc_mismat, dev_acc_snli, mtrain_acc, strain_acc))
                         logger.Log("Step: %i\t Dev-matched cost: %f\t Dev-mismatched cost: %f\t Dev-SNLI cost: %f\t MultiNLI train cost: %f\t SNLI train cost: %f" %(self.step, dev_cost_mat, dev_cost_mismat, dev_cost_snli, mtrain_cost, strain_cost))
                     else:
+                        if dev_acc_mat_q != -1:
+                            logger.Log("Q Dev-matched acc: %f" % dev_acc_mat_q)
                         logger.Log("Step: %i\t Dev-matched acc: %f\t Dev-mismatched acc: %f\t Dev-SNLI acc: %f\t MultiNLI train acc: %f" %(self.step, dev_acc_mat, dev_acc_mismat, dev_acc_snli, mtrain_acc))
                         logger.Log("Step: %i\t Dev-matched cost: %f\t Dev-mismatched cost: %f\t Dev-SNLI cost: %f\t MultiNLI train cost: %f" %(self.step, dev_cost_mat, dev_cost_mismat, dev_cost_snli, mtrain_cost))
 
@@ -383,16 +389,12 @@ class modelClassifier:
                     self.eval_step = 500
                     self.save_step = 500
                     
-
-
-
                 if self.best_dev_mat > 0.780 and not config.training_completely_on_snli:
                     self.eval_step = 100
                     self.save_step = 100
                     self.dont_print_unnecessary_info = True 
                     # if config.use_sgd_at_the_end:
                     #     self.optimizer =  tf.train.GradientDescentOptimizer(0.00001).minimize(self.model.total_cost, global_step = self.global_step)
-
 
                 if self.best_dev_mat > 0.872 and config.training_completely_on_snli:
                     self.eval_step = 500
@@ -486,7 +488,10 @@ class modelClassifier:
                 #feed_dict[self.model.epoch] = 0
 
             genres += minibatch_genres
-            logit, cost = self.sess.run([self.model.logits, self.model.total_cost], feed_dict)
+            if config.use_logic:
+                logit, q_y_x, cost = self.sess.run([self.model.logits, self.model.q_y_x, self.model.total_cost], feed_dict)
+            else:
+                logit, cost = self.sess.run([self.model.logits, self.model.total_cost], feed_dict)
             costs += cost
             logits = np.vstack([logits, logit])
 
@@ -511,7 +516,12 @@ class modelClassifier:
 
             correct_file.close()
             wrong_file.close()
-        return genres, np.argmax(logits[1:], axis=1), costs
+
+        if config.use_logic:
+            return genres, (np.argmax(logits[1:], axis=1), np.argmax(q_y_x[1:], axis=1)), costs
+        else:
+            return genres, np.argmax(logits[1:], axis=1), costs
+
 
     def generate_predictions_with_id(self, path, examples):
         if (test == True) or (self.completed == True):

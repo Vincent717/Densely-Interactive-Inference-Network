@@ -202,8 +202,8 @@ pa("--semantic_regularization_ratio", type=float, default=9e-5, help='semantic r
 ## harnessing logic rules
 pa("--use_logic", action='store_true', help='have logic rules') ##
 pa("--pi", type=float, default=0.1, help='initial logic rules imitation ratio') ##
-pa("--C", type=float, default=400, help='rule regularization') ##
-pa("--lambdal", type=float, default=1, help='semantic regularization ratio') ##
+pa("--C", type=float, default=400., help='rule regularization') ##
+pa("--lambdal", type=float, default=0.8, help='semantic regularization ratio') ##
 #pa()
 
 

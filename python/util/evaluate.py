@@ -12,7 +12,7 @@ import pickle
 # }
 
 
-def evaluate_classifier(classifier, eval_set, batch_size, save_wrong_answer=False):
+def evaluate_classifier(classifier, eval_set, batch_size, save_wrong_answer=False, q=False):
     """
     Function to get accuracy and cost of the model, evaluated on a chosen dataset.
 
@@ -26,6 +26,12 @@ def evaluate_classifier(classifier, eval_set, batch_size, save_wrong_answer=Fals
     # full_batch = int(len(eval_set) / batch_size) * batch_size
 
     confusion_matrix = [[0,0,0] for i in range(3)]
+
+    if isinstance(hypotheses, tuple):
+        # when using logic rules, we want to check q_y_x too
+        hypotheses, qyxs = hypotheses
+    else:
+        qyxs = 0
 
     # confusion matrix
 
@@ -47,8 +53,22 @@ def evaluate_classifier(classifier, eval_set, batch_size, save_wrong_answer=Fals
             wrong_answer.append(tmp)
         confusion_matrix[label][hypothesis] += 1 
 
+    if q and qyxs != 0:
+        q_correct = 0 
+        q_confusion_matrix = [[0,0,0] for i in range(3)]
+        for i in range(qyxs.shape[0]):
+            hypothesis = qyxs[i]
+            label = eval_set[i]['label']
+            if hypothesis == label:
+                q_correct += 1 
+            # else:
+            #     tmp = eval_set[i]
+            #     tmp['predict_label'] = hypothesis
+            #     wrong_answer.append(tmp)
+            #q_confusion_matrix[label][hypothesis] += 1 
+
     if save_wrong_answer:
-        wrong_answer_path = os.path.join(FIXED_PARAMETERS["log_path"], "wrong_answer1.pkl")
+        wrong_answer_path = os.path.join(FIXED_PARAMETERS["log_path"], "wrong_answer.pkl")
         with open(wrong_answer_path, 'wb') as f:
             f.write(pickle.dumps(wrong_answer))
         print('wrong answer saved!') 
@@ -61,7 +81,11 @@ def evaluate_classifier(classifier, eval_set, batch_size, save_wrong_answer=Fals
         confusion_matrix[0][0],confusion_matrix[0][1],confusion_matrix[0][2],\
         confusion_matrix[1][0],confusion_matrix[1][1],confusion_matrix[1][2],\
         confusion_matrix[2][0],confusion_matrix[2][1],confusion_matrix[2][2])
-    return correct / float(hypotheses.shape[0]), cost, confmx
+
+    if q:
+        return correct / float(hypotheses.shape[0]), q_correct / float(qyxs.shape[0]), cost, confmx
+    else:
+        return correct / float(hypotheses.shape[0]), cost, confmx
 
 def evaluate_classifier_genre(classifier, eval_set, batch_size):
     """
