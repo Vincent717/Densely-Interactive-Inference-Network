@@ -333,12 +333,17 @@ class modelClassifier:
                         dev_acc_mat = dev_cost_mat = 1.0
                     else:
                         if self.config.use_logic:
-                            dev_acc_mat, q_dev_acc_mat, dev_cost_mat, confmx = evaluate_classifier(self.classify, dev_mat, self.batch_size, q=True)
+                            dev_acc_mat, q_dev_acc_mat, dev_cost_mat, confmx, q_confmx = evaluate_classifier(self.classify, dev_mat, self.batch_size, q=True)
                         else:
                             dev_acc_mat, dev_cost_mat, confmx = evaluate_classifier(self.classify, dev_mat, self.batch_size)
                             q_dev_acc_mat = -1
+                            q_confmx = ''
                         logger.Log("Confusion Matrix on dev-matched\n{}".format(confmx))
-                    
+
+                    if self.config.use_logic:
+                        logger.Log("Q Confusion Matrix on dev-matched\n{}".format(q_confmx))
+                        logger.Log("Q Dev-matched acc: %f" % q_dev_acc_mat)
+                        
                     if config.training_completely_on_snli:
                             dev_acc_snli, dev_cost_snli, _ = evaluate_classifier(self.classify, dev_snli, self.batch_size)
                             dev_acc_mismat, dev_cost_mismat = 0,0
@@ -360,13 +365,10 @@ class modelClassifier:
                             strain_acc, strain_cost,_ = evaluate_classifier(self.classify, train_snli[0:5000], self.batch_size)
                         else:
                             strain_acc, strain_cost = 0, 0
-                        if dev_acc_mat_q != -1:
-                            logger.Log("Q Dev-matched acc: %f" % dev_acc_mat_q)
+
                         logger.Log("Step: %i\t Dev-matched acc: %f\t Dev-mismatched acc: %f\t Dev-SNLI acc: %f\t MultiNLI train acc: %f\t SNLI train acc: %f" %(self.step, dev_acc_mat, dev_acc_mismat, dev_acc_snli, mtrain_acc, strain_acc))
                         logger.Log("Step: %i\t Dev-matched cost: %f\t Dev-mismatched cost: %f\t Dev-SNLI cost: %f\t MultiNLI train cost: %f\t SNLI train cost: %f" %(self.step, dev_cost_mat, dev_cost_mismat, dev_cost_snli, mtrain_cost, strain_cost))
                     else:
-                        if dev_acc_mat_q != -1:
-                            logger.Log("Q Dev-matched acc: %f" % dev_acc_mat_q)
                         logger.Log("Step: %i\t Dev-matched acc: %f\t Dev-mismatched acc: %f\t Dev-SNLI acc: %f\t MultiNLI train acc: %f" %(self.step, dev_acc_mat, dev_acc_mismat, dev_acc_snli, mtrain_acc))
                         logger.Log("Step: %i\t Dev-matched cost: %f\t Dev-mismatched cost: %f\t Dev-SNLI cost: %f\t MultiNLI train cost: %f" %(self.step, dev_cost_mat, dev_cost_mismat, dev_cost_snli, mtrain_cost))
 
@@ -449,6 +451,7 @@ class modelClassifier:
         total_batch = int(len(examples) / self.batch_size)
         pred_size = 3 
         logits = np.empty(pred_size)
+        qyxs = np.empty(pred_size)
         genres = []
         costs = 0
         
@@ -490,6 +493,7 @@ class modelClassifier:
             genres += minibatch_genres
             if config.use_logic:
                 logit, q_y_x, cost = self.sess.run([self.model.logits, self.model.q_y_x, self.model.total_cost], feed_dict)
+                qyxs = np.vstack([qyxs, q_y_x])
             else:
                 logit, cost = self.sess.run([self.model.logits, self.model.total_cost], feed_dict)
             costs += cost
@@ -518,7 +522,7 @@ class modelClassifier:
             wrong_file.close()
 
         if config.use_logic:
-            return genres, (np.argmax(logits[1:], axis=1), np.argmax(q_y_x[1:], axis=1)), costs
+            return genres, (np.argmax(logits[1:], axis=1), np.argmax(qyxs[1:], axis=1)), costs
         else:
             return genres, np.argmax(logits[1:], axis=1), costs
 

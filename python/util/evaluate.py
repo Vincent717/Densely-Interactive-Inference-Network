@@ -30,8 +30,9 @@ def evaluate_classifier(classifier, eval_set, batch_size, save_wrong_answer=Fals
     if isinstance(hypotheses, tuple):
         # when using logic rules, we want to check q_y_x too
         hypotheses, qyxs = hypotheses
-    else:
-        qyxs = 0
+        #print(hypotheses, qyxs, 8888888)
+    #else:
+    #    qyxs = 0
 
     # confusion matrix
 
@@ -53,7 +54,7 @@ def evaluate_classifier(classifier, eval_set, batch_size, save_wrong_answer=Fals
             wrong_answer.append(tmp)
         confusion_matrix[label][hypothesis] += 1 
 
-    if q and qyxs != 0:
+    if q:
         q_correct = 0 
         q_confusion_matrix = [[0,0,0] for i in range(3)]
         for i in range(qyxs.shape[0]):
@@ -65,7 +66,17 @@ def evaluate_classifier(classifier, eval_set, batch_size, save_wrong_answer=Fals
             #     tmp = eval_set[i]
             #     tmp['predict_label'] = hypothesis
             #     wrong_answer.append(tmp)
-            #q_confusion_matrix[label][hypothesis] += 1 
+            q_confusion_matrix[label][hypothesis] += 1 
+
+        q_confmx = """    label \ predict | entailment | neutral | contradiction
+        -------------------------------------------------------
+        entailment      |     {}     |    {}   |    {}        
+        neutral         |     {}     |    {}   |    {}         
+        contradiction   |     {}     |    {}   |    {}         """.format(\
+        q_confusion_matrix[0][0],q_confusion_matrix[0][1],q_confusion_matrix[0][2],\
+        q_confusion_matrix[1][0],q_confusion_matrix[1][1],q_confusion_matrix[1][2],\
+        q_confusion_matrix[2][0],q_confusion_matrix[2][1],q_confusion_matrix[2][2])
+
 
     if save_wrong_answer:
         wrong_answer_path = os.path.join(FIXED_PARAMETERS["log_path"], "wrong_answer.pkl")
@@ -82,8 +93,9 @@ def evaluate_classifier(classifier, eval_set, batch_size, save_wrong_answer=Fals
         confusion_matrix[1][0],confusion_matrix[1][1],confusion_matrix[1][2],\
         confusion_matrix[2][0],confusion_matrix[2][1],confusion_matrix[2][2])
 
+
     if q:
-        return correct / float(hypotheses.shape[0]), q_correct / float(qyxs.shape[0]), cost, confmx
+        return correct / float(hypotheses.shape[0]), q_correct / float(qyxs.shape[0]), cost, confmx, q_confmx
     else:
         return correct / float(hypotheses.shape[0]), cost, confmx
 
