@@ -633,7 +633,7 @@ class MyModelWn(object):
             #tf.summary.scalar('auc_PR', self.auc_PR)
             # calculate acc 
         else:
-            get_pi = lambda x, y: x * 0.9**tf.cast(y/6750, tf.float32)
+            get_pi = lambda x, y: x * 0.9**tf.cast(y/6750, tf.float32)  # when batch size is 70: 6750; 48:9850
             pi = get_pi(config.pi, self.global_step)
             self.total_cost = (1-pi)*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.logits))
             self.total_cost += pi*tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf.arg_max(q_y_x, dimension=1), logits=self.logits))
