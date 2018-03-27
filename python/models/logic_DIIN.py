@@ -181,7 +181,7 @@ class MyModel(object):
                 """
                 # for rule in rules:
                 #     if rule == 'AndE':
-                pre_distr = tf.minimum(sub_logits1 + sub_logits1, 1)  # 70x3
+                pre_distr = tf.minimum(sub_logits1 + sub_logits2, 1)  # 70x3
                 r_AE_y0 = (pre_distr[:,0] + 1) / 2  # 70x1
                 r_AC_y0 = (2 - pre_distr[:,2]) / 2  # 70x1
                 r_AE_y1 = (2 - pre_distr[:,0]) / 2
@@ -559,7 +559,7 @@ class MyModelWn(object):
                 """
                 # for rule in rules:
                 #     if rule == 'AndE':
-                pre_distr = tf.minimum(sub_logits1 + sub_logits1, 1)  # 70x3
+                pre_distr = tf.minimum(sub_logits1 + sub_logits2, 1)  # 70x3
                 r_AE_y0 = (pre_distr[:,0] + 1) / 2  # 70x1
                 r_AC_y0 = (2 - pre_distr[:,2]) / 2  # 70x1
                 r_AE_y1 = (2 - pre_distr[:,0]) / 2
