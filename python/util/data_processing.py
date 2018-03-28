@@ -742,24 +742,23 @@ def save_submission(path, ids, pred_ids):
     f.close()
 
 
-def save_wordnet_rel(datasets):  
+def save_rel(datasets, target_func=find_wordnet_rel_worker, result_file='wn_rel_shared.pkl'):  
     """
     word_seqs: (batch_size, 2, seq_length)
     out: (batch_size, seq_len, seq_len, 5)
     """
-
     mgr = multiprocessing.Manager()
     shared_content = mgr.dict()
     process_num = config.num_process_prepro
     process_num = 12
     for i, dataset in enumerate(datasets):
         num_per_share = int(len(dataset) / process_num + 1)
-        jobs = [ multiprocessing.Process(target=find_wordnet_rel_worker1, args=(shared_content, dataset[i * num_per_share : (i + 1) * num_per_share] )) for i in range(process_num)]
+        jobs = [ multiprocessing.Process(target=target_func, args=(shared_content, dataset[i*num_per_share:(i+1)*num_per_share])) for i in range(process_num)]
         for j in jobs:
             j.start()
         for j in jobs:
             j.join()
-    with open('wn_rel_shared.pkl', 'wb') as f:
+    with open(result_file, 'wb') as f:
         # for k, v in dict(shared_content).items():
         #     line = '%s\t%s\n' %(k, v)
         #     f.write(line)
@@ -772,7 +771,6 @@ def fix_wordnet_rel(datasets):
     word_seqs: (batch_size, 2, seq_length)
     out: (batch_size, seq_len, seq_len, 5)
     """
-
     mgr = multiprocessing.Manager()
     shared_content = mgr.dict()
     process_num = config.num_process_prepro
@@ -846,7 +844,7 @@ def restrict_len_tokenize(string):
         out = out + [PADDING] * (FIXED_PARAMETERS["seq_length"] - len(out))
         return out
 
-def find_wordnet_rel_worker1(shared_content, dataset):
+def find_wordnet_rel_worker(shared_content, dataset):
     out = []
     for example in tqdm(dataset):
         aout = []
@@ -861,31 +859,71 @@ def find_wordnet_rel_worker1(shared_content, dataset):
         del sparse_rel
         gc.collect()
 
-def find_wordnet_rel_mp(word_seqs):  
+def find_ppdb_rel_worker(shared_content, dataset):
+    out = []
+    for example in tqdm(dataset):
+        aout = []
+        a = restrict_len_tokenize(example['sentence1_binary_parse'])
+        b = restrict_len_tokenize(example['sentence2_binary_parse'])
+        pairid = example['pairID']
+        rels = find_ppdb_rel([(a,b)])[0]
+        #sparse_rel = sparse.lil_matrix(rels)
+        sparse_rel = Sparray3D(rels)
+        shared_content[pairid] = sparse_rel
+        del rels
+        del sparse_rel
+        gc.collect()
+
+def find_ppdb_rel(word_seqs):  
     """
-    multiprocessing version
     word_seqs: (batch_size, 2, seq_length)
     out: (batch_size, seq_len, seq_len, 5)
     """
     #if wn_rel_content:
-    mgr = multiprocessing.Manager()
-    shared_content = mgr.dict()
-    process_num = config.num_process_prepro
-    #process_num = 8
-    num_per_share = int(len(word_seqs) / process_num + 1)
-    jobs = [ multiprocessing.Process(target=find_wordnet_rel_worker, args=(word_seqs[i * num_per_share : (i + 1) * num_per_share], shared_content, i*num_per_share )) for i in range(process_num)]
-    for j in jobs:
-        j.start()
-    for j in jobs:
-        j.join()
-    keys = shared_content.keys() 
-    keys.sort() 
-    return list(map(shared_content.get, keys)) 
+    def pretty_word(x):
+        x = x.lower()
+        if x == "n't":
+            return 'not'
+        # elif x == "'s":
+        #     return 'is'
+        # elif x == "'ve":
+        #     return 'have'
+        else:
+            return x
 
-def find_wordnet_rel_worker(word_seqs, shared_content, index=0):
-    for seq in word_seqs:
-        shared_content[index] = find_wordnet_rel([seq])[0]
-        index += 1
+    out = []
+    for seqs in word_seqs:
+        aout = []
+        a, b = seqs
+        for ai in a:
+            if ai == PADDING:
+                 bout = [[0,0,0,0,0] for _ in range(len(b))]
+            else:
+                ai = pretty_word(ai)
+                bout = []
+                for bi in b:
+                    if bi == PADDING:
+                        rel = [0,0,0,0,0]
+                    else:
+                        bi = pretty_word(bi)
+                        aw = get_synsets(ai)
+                        bw = get_synsets(bi)
+                        if ai == bi:
+                            rel = [1, is_ant(aw, bw), is_hypernymy(aw, bw),
+                                is_hyponymy(aw, bw), is_same_hypernym(aw, bw)]
+                        else:
+                            rel = [is_syn(aw, bw), is_ant(aw, bw), is_hypernymy(aw, bw),
+                                is_hyponymy(aw, bw), is_same_hypernym(aw, bw)]
+                    bout.append(rel)    
+            # bout.shape: (b_length, 5)
+            aout.append(bout)
+        # aout.shape: (a_length, b_length, 5)
+        out.append(aout)
+    # out.shape: (batch_size, a_length, b_length, 5)
+    return out
+    #return np.array(out)
+
+
 
 def find_wordnet_rel(word_seqs):  
     """
