@@ -348,6 +348,36 @@ def parse_to_dependency(s, seq_len=48, max_index=5, one_hot=True):
         indexs = to_index(out, words, max_index) + paddings
     return indexs
 
+
+def parse_to_tree_dependency(s, seq_len=48, max_index=5, one_hot=True):
+    word_parse = s.split()
+    words = tokenize(s)
+    out = []
+    for i, w in enumerate(word_parse):
+        if w == '(' or w == ')':
+            continue
+        else:
+            try:
+                end = word_parse[i:].index(')')
+            except:
+                end = 1
+            tmp = word_parse[i+1:i+end]
+            tmp = list(filter(lambda x: x !='(', tmp))
+            out.append(tmp)
+        if len(out) >= seq_len:
+            break
+
+    if one_hot:
+        paddings = [[] for i in range(len(out),seq_len)]
+        indexs = to_index_no_pad(out, words, max_index) + paddings
+        indexs = to_one_hot(indexs, seq_len)
+    else:
+        paddings = [[-1] * max_index for i in range(len(out),seq_len)]
+        indexs = to_index(out, words, max_index) + paddings
+    return indexs
+
+
+
 def to_one_hot(indexs, seq_len):
     #out = [[0] * seq_len] * len(indexs)
     out = [[0 for _ in range(seq_len)] for _ in range(len(indexs))]
@@ -742,7 +772,7 @@ def save_submission(path, ids, pred_ids):
     f.close()
 
 
-def save_rel(datasets, target_func=find_wordnet_rel_worker, result_file='wn_rel_shared.pkl'):  
+def save_rel(datasets, target_func, result_file='wn_rel_shared.pkl'):  
     """
     word_seqs: (batch_size, 2, seq_length)
     out: (batch_size, seq_len, seq_len, 5)
@@ -874,55 +904,94 @@ def find_ppdb_rel_worker(shared_content, dataset):
         del sparse_rel
         gc.collect()
 
-def find_ppdb_rel(word_seqs):  
-    """
-    word_seqs: (batch_size, 2, seq_length)
-    out: (batch_size, seq_len, seq_len, 5)
-    """
-    #if wn_rel_content:
-    def pretty_word(x):
+
+def pretty_words(xs):
+    res = []
+    for x in xs:
         x = x.lower()
         if x == "n't":
-            return 'not'
+            res.append('not')
         # elif x == "'s":
         #     return 'is'
         # elif x == "'ve":
         #     return 'have'
         else:
-            return x
+            res.append(x)
+    return res
+            
+def is_para(a,b):
+    wa = ' '.join(a).strip()
+    wb = ' '.join(b).strip()
+    print(wa, '~', wb)
+    if wa in dippdb:
+        pwa = dippdb[wa]
+        if wb in pwa:
+            return pwa[wb]
+        else:
+            return False
+    elif wb in dippdb:
+        pwb = dippdb[wb]
+        if wa in pwb:
+            return pwb[wa]
+        else:
+            return False
+    else:
+        return False
+    
 
-    out = []
+def find_ppdb_rel(word_seqs, longest=7):  
+    """
+    word_seqs: (batch_size, 2, seq_length)
+    out: (batch_size, seq_len, seq_len, 5)
+    """
+    out_all = []
     for seqs in word_seqs:
-        aout = []
         a, b = seqs
-        for ai in a:
+        out = x = [[[0] for _ in range(len(b))] for _ in range(len(a))]
+        b_zero = [0] * 10
+        a_zero = [b_zero for _ in range(len(b))]
+        i, j = 0, 0
+        while i < len(a):
+            j = 0
+            ai = a[i]
             if ai == PADDING:
-                 bout = [[0,0,0,0,0] for _ in range(len(b))]
+                # 如果遇到padding，后面都填0
+                for m in range(i,len(a)):
+                    out[m] = a_zero
+                break
             else:
-                ai = pretty_word(ai)
-                bout = []
-                for bi in b:
-                    if bi == PADDING:
-                        rel = [0,0,0,0,0]
-                    else:
-                        bi = pretty_word(bi)
-                        aw = get_synsets(ai)
-                        bw = get_synsets(bi)
-                        if ai == bi:
-                            rel = [1, is_ant(aw, bw), is_hypernymy(aw, bw),
-                                is_hyponymy(aw, bw), is_same_hypernym(aw, bw)]
+                for k in list(range(1,min(longest,len(a)-i)))[::-1]:
+                    j = 0
+                    print(i, i+k, j)
+                    cur_a = a[i:i+k]
+                    cur_a = pretty_words(cur_a)
+                    while j < len(b):
+                        bj = b[j]
+                        if bj == PADDING:
+                            # 如果b遇到padding，后面都填0
+                            for n in range(j, len(b)):
+                                out[i][n] = b_zero
+                            break
                         else:
-                            rel = [is_syn(aw, bw), is_ant(aw, bw), is_hypernymy(aw, bw),
-                                is_hyponymy(aw, bw), is_same_hypernym(aw, bw)]
-                    bout.append(rel)    
-            # bout.shape: (b_length, 5)
-            aout.append(bout)
-        # aout.shape: (a_length, b_length, 5)
-        out.append(aout)
-    # out.shape: (batch_size, a_length, b_length, 5)
-    return out
-    #return np.array(out)
-
+                            for l in list(range(1,min(longest,len(b)-j)))[::-1]:
+                                cur_b = b[j:j+l]
+                                cur_b = pretty_words(cur_b)
+                                ab_vec = is_para(cur_a, cur_b)
+                                #print(cur_a, cur_b, ab_vec)
+                                if ab_vec:
+                                    print('llll', i,j,k,l)
+                                    for m in range(i,i+k):
+                                        for n in range(j,j+l):
+                                            out[m][n] = ab_vec
+                                    #i = i+k
+                                    j = j+l
+                                    break
+                        if out[i][j] == [0]:
+                            out[i][j] = b_zero
+                        j += 1
+            i += 1      
+        out_all.append(out)
+    return out_all
 
 
 def find_wordnet_rel(word_seqs):  

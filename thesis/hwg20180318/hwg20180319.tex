@@ -426,35 +426,87 @@ min_{q} KL(q(Y|X) || p_\theta(Y|X)) - \text{Constraint}
 
 逻辑规则是离散的，形式化的，在以神经网络为模型的方法中，训练是连续的，稠密的。一个有效的方法是改造逻辑规则，使得他们变成“是否可满足”的形式，然后使用模糊逻辑作为语义，使得其真值是在$[0,1]$的区间之内的一个实数。举一个简单的例子，比如给定一个逻辑规则$R$，将$R$改写成$R'(x_1,x_2,y)$的约束形式。再给定一个样本$(p,h,y)$，如$p$可以通过规则$R$推导出$h$，则$v(R'(p,h,y))=1$，$v$表示一个逻辑表达式的真值；如果没法推出$h$，则$v(R'(p,h,y))=0$。使用模糊逻辑语义可以允许对逻辑规则进行一些连续值的赋值，能够扩大逻辑规则的范围和更好的与模型融合。
 
-接下来简单解释一下如何将逻辑规则改写成约束。给定一个集合的一阶逻辑规则$\mathcal{R}=\{(R_l,\lambda_l)\}^L_{l=1}$, 其中$R_l$为逻辑表达式，$\lambda_l$为该规则的权重。对于一个规则$l$，一个直观的想法是，希望改变后的模型$q$的预测结果都尽量和规则满足。比如当$q$预测$y=\text{Entailment}$的时候，$v(R_l(y=Entailment))$的值也尽可能大。即$\mathbb{E}^{q(Y|X)}[r_{lg}(X,Y)]=1$，其中$r_lg$为$R_l$规则的所有grounding（所有变元都被实例化后的逻辑表达式）。有了这个约束表达，我们将优化问题改写成
+接下来简单解释一下如何将逻辑规则改写成约束。给定一个集合的一阶逻辑规则$\mathcal{R}=\{(R_l,\lambda_l)\}^L_{l=1}$, 其中$R_l$为逻辑表达式，$\lambda_l$为该规则的权重。对于一个规则$l$，一个直观的想法是，希望改变后的模型$q$的预测结果都尽量和规则满足。比如当$q$预测$y=\text{Entailment}$的时候，$v(R_l(y=Entailment))$的值也尽可能大。即$\mathbb{E}^{q(Y|X)}[r_{lg}(X,Y)]=1$，其中$r_lg$为$R_l$规则的所有grounding（所有变元都被实例化后的逻辑表达式）。有了这个约束表达，我们将优化问题改写成以下形式：
 
 \begin{equation}
 min_{q \in P} KL(q(Y)|| p_\theta(Y|X)) - C \sum_l \lambda_l E_q[f_l(X,Y)]
 \end{equation}
 
+其中$C$是约束参数。
 
+根据上面的最优化问题，可以推演得到以下解\cite{}:
 
+\begin{equation}
+q^*(Y|X) \propto p_\theta(Y|X) \text{exp} \big{ -\sum_{l,gl}C\lambda_l(1-r_{l,gl}(X,Y)) \big}
+\end{equation}
+
+虽然我们可以在$p$训练收敛之后，再通过上述方法得到$q$，就像模型蒸馏技术\cite{}一样。但根据实验结果，发现迭代式的同时学习$p$和$q$的效果会更好。\cite{}将$p$称为学生模型，$q$称为老师模型。具体流程是，在第$t$次迭代，假定已有$p_\theta^{(t)}$，然后由$p^{(t)}$通过上面公式得到$q^{(t)}$。在根据以下公式将$q^{(t)}$的预测结果和真实结果$y$作平衡，以更新$p$的参数$\theta$得到$p_\theta^{(t+1)}$
 
 \begin{equation}
 \theta^{(t+1)} = argmin_{\theta\in \Theta} \frac{1}{N}\sum^N_{n=1}(1-\pi)l(y_n,\sigma_\theta(x_n)) + \pi l(s^{(t)}_n,\sigma_\theta(x_n)) 
 \end{equation}
 
+其中$l$是损失函数，$\sigma_\theta(x_n)$是$p_\theta$的预测结果，$s_n^{t}$是$q^{(t)}$的软预测结果（为各个标签的实数概率）。$\pi$是模仿参数，用来平衡学习真实样本和学习逻辑规则结果的重要性。
+
+总的来说，整个方法是要求模型模拟通过逻辑知识加强后的模型$q$的预测结果。每一个迭代步骤，通过将学生网络$p$投影到一个由逻辑规则约束的参数子空间，得到老师网络$q$。然后再通过$q$的预测结果和真实结果做平衡作为损失更新学生网络的参数。由实验结果来看，一般学生网络的泛化能力更好，可以应用到其他领域，而老师网络在某一个单独的领域能够比学生网络达到更高的准确率。
+
+\subsubsection{合取规则 $AndE$}
+
+下面我们简述一条我们使用的逻辑规则。直观上如果前提$p=p_1 \land p_2$是两个分支合取的形式，而如果其中一个子命题能蕴含假设，则整个前提$p$能蕴含假设。由于一般语句都会使用逗号作为子命题的分割符号，所以我们可以简单的通过逗号来分割前提$p$为$p_1$和$p_2$。
+
+使用逻辑规则表示如下，我们称该规则为合取蕴含规则$AndE$：
+
+\begin{equation}
+\frac{p_1 \land p_2, p_1 \to h}{p_1 \land p_2 \to h}
+\end{equation}
+
+
+改写成逻辑表达式的形式为：
+\begin{equation}
+ (p_1 \land p_2 \to h) \to (p_1 \to h \vee p_2 \to h) \land (p_1 \to h \vee p_2 \to h) \to (p_1 \land p_2 \to h)
+\end{equation}
+
+进一步改写得到：
+
+\begin{equation}
+1(y=E) \to (\sigma_\theta(p_1)_E \vee \sigma_\theta(p_2)_E) \land (\sigma_\theta(p_1)_E \vee \sigma_\theta(p_2)_E) \to 1(y=E)
+\end{equation}
+
+其中$1$为示性函数，当$y=Entailment$时为1，否则为0，$\sigma_\theta(p_1)_E$表示模型$p_\theta$对语句$p_1$与$h$为Entailment关系的预测概率。
+
+根据模糊逻辑的真值运算规则：
+\begin{equation}
+A \vee B = min\{A+B,1\}
+
+A \land B = (A + B) / 2
+
+\neg A = 1 - A
+
+\end{equation}
+
+可将上式真值化简得到，当$y=Entailment$时，真值为$\frac{min\{p_1+p_2,1\}+1}{2}$；否则真值为\frac{2-min\{p_1+p_2,1\}}{2}
+
 % 讨论如何训练
 \subsection{模型训练}
 
-模型训练
 %学习的参数是什么
-逻辑规则
 
 该模型一共有以下权值需要训练：
-$\overleftarrow{W_z}, \overleftarrow{W}, \overleftarrow{W_r}, \overrightarrow{W_z}, \overrightarrow{W}, \overrightarrow{W_r},W_z, W_r, W, W_{s1}, W_{s2}$,其中前面6个分别为编码器两个方向的LSTM层的权值，中间三个为解码器的LSTM层的权值，最后两个为注意力机制的权值。
+基础模型中的嵌入层(embedding)参数、语义编码层中的高速网络参数、特征获取层的DenseNet的参数、以及最后的全连接层的参数；语义知识的参数计入了DenseNet中；句法依存知识中的线性组合的参数。
 
+% 怎么训练，训练方法，loss使用什么，
+我们使用交叉熵作为损失函数，并加入了L2正则项，避免模型过拟合。同时我们使用批量梯度下降训练参数，并使用AdaDelta\cite{}作为参数更新方法。
+
+% 三种知识的获取
+关于外部知识模块的获取，语义知识是通过WordNet获取的；句法依存知识通过Stanford PCFG句法解析器对语句解析得到。
+
+% 看要不要把流程写一下
 
 
 \section{实验}
+为了验证我们的外部知识框架的有效性，我们在MultiNLI和SNLI两个数据集上对模型进行了测试。通过增加三种简单而有效的外部知识模块，模型在两个数据集上都有了提升，达到了目前最好的效果。
 
-
-\subsection{实验参数}
+\subsection{实验配置}
 \subsection{Multi-NLI数据集}
 \subsection{SNLI数据集}
 \subsection{缺省实验}
