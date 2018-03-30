@@ -381,6 +381,11 @@ h: It would be helpful if we could have a soft and hard copy of your comments.
 % 怎么实现的
 对于每一个词，如果有词语依赖于它，我们希望将它与依赖它们的词语进行组合，得到这几个词组合后的语义表示。下面我们描述如何选取依赖词。给定一个句法依存树，如下图所示(为了分析方便，我们不再将词语的标签作为词语的父节点，而是将它们合并作为一个节点)，每一个叶子节点是一个词语。对于每一个词$t_i$，它所对应的依赖节点$c_ij$为$t_i$的兄弟节点，或兄弟节点的子（叶）节点。譬如下面的例子，“The”的依赖节点为“new”和“rights”；“and”的依赖节点为“nice”和“enough”；“nice”没有依赖节点。如果使用隐去句法标签的简化版二元句法依存树进行表示，则每一个词的依赖节点为其子节点及孙子节点（子节点的子节点）。
 
+%{"annotator_labels": ["neutral", "entailment", "neutral", "neutral", "neutral"], "genre": "slate", "gold_label": "neutral", "pairID": "364186n", "promptID": "364186n", "sentence1": "The new rights are nice enough", 
+%"sentence1_binary_parse": "( ( The ( new rights ) ) ( are ( nice enough ) ) )",
+
+ %"sentence1_parse": "(ROOT (S (NP (DT The) (JJ new) (NNS rights)) (VP (VBP are) (ADJP (JJ nice) (RB enough)))))", "sentence2": "Everyone really likes the newest benefits ", "sentence2_binary_parse": "( Everyone ( really ( likes ( the ( newest benefits ) ) ) ) )", "sentence2_parse": "(ROOT (S (NP (NN Everyone)) (VP (ADVP (RB really)) (VBZ likes) (NP (DT the) (JJS newest) (NNS benefits)))))"}
+
 接下来我们使用子树依存特征组合器来获取依存语义表示，我们使用一个线性组合来模拟组合器。给定一个词的语义编码后的形式$t_{i}$，以及其$k$个依赖节点$c_{ij}$，$j \in \{1,\dots,k\}$。其中所有$t_{i}, c_{ij}$都是$p^{enc}$或$h^{enc}$中的向量。依存表示$t^{dep}_i \in \mathbb{R}^u$计算如下：
 
 \begin{equation}
@@ -507,6 +512,8 @@ A \land B = (A + B) / 2
 为了验证我们的外部知识框架的有效性，我们在MultiNLI和SNLI两个数据集上对模型进行了测试。通过增加三种简单而有效的外部知识模块，模型在两个数据集上都有了提升，达到了目前最好的效果。
 
 \subsection{实验配置}
+
+
 \subsection{Multi-NLI数据集}
 \subsection{SNLI数据集}
 \subsection{缺省实验}
