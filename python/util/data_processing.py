@@ -918,11 +918,16 @@ def pretty_words(xs):
         else:
             res.append(x)
     return res
-            
+
+with open('../data/ppdb/dic_ppdb_m_5.pkl', 'rb') as f:
+    pure_dippdb = f.read()
+dippdb = pickle.loads(pure_dippdb)
+del pure_dippdb
+
 def is_para(a,b):
     wa = ' '.join(a).strip()
     wb = ' '.join(b).strip()
-    print(wa, '~', wb)
+    #print(wa, '~', wb)
     if wa in dippdb:
         pwa = dippdb[wa]
         if wb in pwa:
@@ -939,7 +944,7 @@ def is_para(a,b):
         return False
     
 
-def find_ppdb_rel(word_seqs, longest=7):  
+def find_ppdb_rel(word_seqs, longest=5):  
     """
     word_seqs: (batch_size, 2, seq_length)
     out: (batch_size, seq_len, seq_len, 5)
@@ -947,7 +952,7 @@ def find_ppdb_rel(word_seqs, longest=7):
     out_all = []
     for seqs in word_seqs:
         a, b = seqs
-        out = x = [[[0] for _ in range(len(b))] for _ in range(len(a))]
+        out = [[[0] for _ in range(len(b))] for _ in range(len(a))]
         b_zero = [0] * 10
         a_zero = [b_zero for _ in range(len(b))]
         i, j = 0, 0
@@ -962,7 +967,6 @@ def find_ppdb_rel(word_seqs, longest=7):
             else:
                 for k in list(range(1,min(longest,len(a)-i)))[::-1]:
                     j = 0
-                    print(i, i+k, j)
                     cur_a = a[i:i+k]
                     cur_a = pretty_words(cur_a)
                     while j < len(b):
@@ -979,7 +983,7 @@ def find_ppdb_rel(word_seqs, longest=7):
                                 ab_vec = is_para(cur_a, cur_b)
                                 #print(cur_a, cur_b, ab_vec)
                                 if ab_vec:
-                                    print('llll', i,j,k,l)
+                                    #print('llll', i,j,k,l)
                                     for m in range(i,i+k):
                                         for n in range(j,j+l):
                                             out[m][n] = ab_vec
@@ -1112,7 +1116,7 @@ if __name__ == '__main__':
     #x = Sparray3D(find_wordnet_rel(test)[0])
     # for i in x.get_data().items():
     #     print(i)
-    print(find_exact_match(pad_tokenize(s1), pad_tokenize(s2)))
+    #print(find_exact_match(pad_tokenize(s1), pad_tokenize(s2)))
     #y = find_wordnet_rel_mp(test)
     # print(len(x), len(y))
     # if x == y:
@@ -1121,3 +1125,33 @@ if __name__ == '__main__':
     #     print('not equal')
     #     print(x, 888)
     #     print(y)
+    #logger.Log("Loading data SNLI")
+    training_snli = load_nli_data(FIXED_PARAMETERS["training_snli"], snli=True)
+    dev_snli = load_nli_data(FIXED_PARAMETERS["dev_snli"], snli=True)
+    test_snli = load_nli_data(FIXED_PARAMETERS["test_snli"], snli=True)
+
+    #logger.Log("Loading data MNLI")
+    training_mnli = load_nli_data(FIXED_PARAMETERS["training_mnli"])
+    dev_matched = load_nli_data(FIXED_PARAMETERS["dev_matched"])
+    dev_mismatched = load_nli_data(FIXED_PARAMETERS["dev_mismatched"])
+
+    test_matched = load_nli_data(FIXED_PARAMETERS["test_matched"], shuffle = False)
+    test_mismatched = load_nli_data(FIXED_PARAMETERS["test_mismatched"], shuffle = False)
+    print('start')
+    datasets = [training_snli, dev_snli, test_snli, training_mnli, dev_matched,
+                dev_mismatched, test_matched, test_mismatched]
+    save_rel(datasets, target_func=find_ppdb_rel_worker, result_file='ppdb_shared_content.pkl')
+    print('yes')
+
+    # with open('ppdb_shared_content.pkl', 'rb') as f:
+    #     x = f.read()
+    # te = pickle.loads(x)
+    # c = 0
+    # for i,k in te.items():
+    #     print(i)
+    #     for j in k.dense():
+    #         if sum([sum(l) for l in j]) > 0:
+    #             print(j)
+    #             c += 1
+
+    # print(c)
