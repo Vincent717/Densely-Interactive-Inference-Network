@@ -559,16 +559,21 @@ class MyModelWn(object):
                 """
                 # for rule in rules:
                 #     if rule == 'AndE':
-                pre_distr = tf.minimum(sub_logits1 + sub_logits2, 1)  # 70x3
+                p1_add_p2 = sub_logits1 + sub_logits2
+                pre_distr = tf.minimum(p1_add_p2, 1)  # 70x3
                 r_AE_y0 = (pre_distr[:,0] + 1) / 2  # 70x1
                 r_AC_y0 = (2 - pre_distr[:,2]) / 2  # 70x1
+                r_AN_y0 = 1
                 r_AE_y1 = (2 - pre_distr[:,0]) / 2
                 r_AC_y1 = (pre_distr[:,2] + 1) / 2
+                r_AN_y1 =  p1_add_p2[:,1] / 2
                 r_AE_y2 = r_AE_y1
                 r_AC_y2 = r_AC_y0
-                r_y0 = c*lambdal* ( 1. - r_AE_y0 - r_AC_y0)  # 70x1
-                r_y1 = c*lambdal* ( 1. - r_AE_y1 - r_AC_y1)  # 70x1
-                r_y2 = c*lambdal* ( 1. - r_AE_y2 - r_AC_y2)  # 70x1
+                r_AN_y2 = 1
+
+                r_y0 = c*lambdal* ( 3. - r_AE_y0 - r_AC_y0 - r_AN_y0)  # 70x1
+                r_y1 = c*lambdal* ( 3. - r_AE_y1 - r_AC_y1 - r_AN_y1)  # 70x1
+                r_y2 = c*lambdal* ( 3. - r_AE_y2 - r_AC_y2 - r_AN_y2)  # 70x1
                 r_y0 = tf.where(tf.equal(and_mask, -1), tf.zeros_like(r_y0), r_y0)  # mask
                 r_y1 = tf.where(tf.equal(and_mask, -1), tf.zeros_like(r_y1), r_y1)
                 r_y2 = tf.where(tf.equal(and_mask, -1), tf.zeros_like(r_y2), r_y2)
