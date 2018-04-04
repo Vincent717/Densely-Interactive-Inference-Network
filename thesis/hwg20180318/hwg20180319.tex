@@ -4,12 +4,33 @@
 \usepackage{times}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{amsthm}
+\usepackage{fancyhdr}
 \usepackage{mathrsfs}
 \usepackage{fancyvrb, color} 
 \usepackage{latexsym} 
 \usepackage{ulem} 
-\usepackage{ntheorem}
+%\usepackage{ntheorem}
 \usepackage{tocloft}
+
+% graphic
+\usepackage{ifpdf}
+\usepackage{sectsty}
+\usepackage{pifont}
+\usepackage{multirow,makecell}
+\usepackage{caption,subcaption}
+\usepackage{mathtools}
+\usepackage[all]{xy}
+\usepackage{tikz}
+\usepackage{booktabs}
+%\usepackage{ctex}
+%\usepackage[thmmarks]{ntheorem}
+\usepackage{eufrak}                   
+%\usepackage{times}                                                        
+\usepackage{tikz-qtree}
+\usepackage{pst-tree}
+\usepackage{forest}
 
 % picture
 \usepackage{graphicx}
@@ -34,8 +55,8 @@
 \CTEXsetup[format={\raggedright\zihao{-4}\heiti}]{subsubsection}
 
 
-\theoremheaderfont{\bfseries}
-\theorembodyfont{\normalfont}
+%\theoremheaderfont{\bfseries}
+%\theorembodyfont{\normalfont}
 \newtheorem{definition}{定义}
 \newtheorem{thm}{定理}
 \newtheorem{property}{性质}
@@ -44,10 +65,10 @@
 \newtheorem{corollary}{推论}
 \newtheorem{conclusion}{结论}
 \newtheorem{condition}{条件}
-{  %证明的格式单独设置
- \theoremstyle{nonumberplain}  %无编号
- \newtheorem{proof}{证明}
-}
+%{  %证明的格式单独设置
+% \theoremstyle{nonumberplain}  %无编号
+% \newtheorem{proof}{证明}
+%}
 
 %设置目录以及摘要的格式
 \renewcommand{\contentsname}{目录}  
@@ -73,11 +94,10 @@
 %标题
 \title{\zihao{3}\textbf{融合外部知识的自然语言推理研究}}
 \date{\quad}
-%\author{\vspace{-0.5em}\zihao{-4}{黄文冠\\ 指导老师：}\\ 
-%\author{\vspace{-0.5em}\zihao{-4}{\kaishu鲜于波}\\ 
-%\vspace{-0.5em}\zihao{5}中山大学哲学系\\
-%\zihao{5}huangwg3@mail2.sysu.edu.cn\\
-%}
+\author{\vspace{-0.5em}\zihao{-4}{黄文冠 }\\ 
+\vspace{-0.5em}\zihao{-4}{指导老师：鲜于波}\\ 
+\vspace{-0.5em}\zihao{5}中山大学哲学系\\
+\zihao{5}huangwg3@mail2.sysu.edu.cn}
 
 
 %%%%%%%%%%%%%%%%
@@ -91,23 +111,23 @@
 
 
 %中英文摘要 
-\begin{cnabstract}
+\begin{abstract}
 {\zihao{5}\CJKfamily{kai}
 
 
 
-认知智能的一个重要方面是对语言的理解和使用，其中基于自然语言的推理尤为重要，可以认为是一个通向人工智能的必要问题。近年来一些基于概率模型、神经网络的研究方法取得了惊人的效果。这类方法的推理模式和能力是通过训练数据学习得到。推理知识是否可以完全通过训练数据习得，以及已有的人类常识知识是否能对系统有所帮助?本篇论文试图探讨外部知识以及一些逻辑规则这些形式化知识是否可以融合到现有的连续的模型当中，并提高其性能。本文将三种知识融合到了自然语言推理模型当中：外部知识、语言学知识以及逻辑知识。具体的，我们从WordNet中获取词语对之间的语义关系；以及语句中词语的语言学依存关系，表示成离散向量，结合到词语语义表示中进行训练。并将逻辑知识通过损失函数的形式融合到模型之中。我们在Multi-NLI以及SNLI数据集上进行了测试，达到了不错的效果。
-
+认知智能的一个重要方面是对语言的理解和使用，其中基于自然语言的推理尤为重要，可以认为是一个通向人工智能的必要问题。近年来一些基于概率模型、神经网络的研究方法取得了惊人的效果。这类方法的推理模式和能力是通过训练数据学习得到。推理知识是否可以完全通过训练数据习得，以及已有的人类常识知识是否能对系统有所帮助?本篇论文试图探讨外部知识以及一些逻辑规则这些形式化知识是否可以融合到现有的连续的模型当中，并提高其性能。本文将三种外部知识融合到了自然语言推理模型当中：语义知识、语言学知识以及逻辑知识。具体的，我们从WordNet中获取词语对之间的语义关系，以离散向量的形式嵌入到模型训练中；同时我们利用语句中的语言学依存关系，获取短语级别的语义表示，结合到词语语义表示中进行学习；最后，我们将逻辑知识以约束的形式，通过损失函数的形式融合到模型之中。我们在Multi-NLI以及SNLI数据集上进行了测试，达到了不错的效果。
 }\\
 \textbf{{\zihao{5}【关键词】：}}{\CJKfamily{kai}自然语言推理、外部知识、逻辑知识}
-\end{cnabstract}
+\end{abstract}
 %\vspace{4ex}
 
 \newpage
-\begin{enabstract}
-{\zihao{-4} The semantic Representation of a text is a fundamental part of many Natural Language Processing tasks. Tasks such as text classification and question answering normally need to map text into vector space before computing them. Currently, most works of semantic representation are focused on supervised learning. One of the drawbacks is that it requires a huge set of labelled data as training data. To make it worse, the representations it got are domain specific, and not general enough to be leveraged on other tasks. In this paper, We purpose an unsupervised method for learning semantic representation. Specifically, our model is based on sequential denoising autoencoder architecture. Before encoding the text by a Bi-directional LSTM with attention mechanism, we use a nosing function to add some noise on it; after that, we decode its matrix-like semantic representation by a max-pooling LSTM decoder. We apply our method on a topic analysis task, and get a promising result.}\\
-\textbf{{\zihao{-4}【Keywords】:}}Semantic Representation;\ \ Unsupervised Learning;\ \ Sequential Denoising Autoencoder
-\end{enabstract}
+\begin{abstract}
+%External Knowledge for Natural Language Inference
+{\zihao{-4} One of the most significant aspect of congitive intelligence is the understanding of natural language. Inference with natural language is even important, which is believed as the necessary problem on the way to Artificial Intelligence. Recently, probability and neural network based method have reached the state-of-the-art on natural language inference. These methods learn their ability of infering and inference patterns from training data. We wonder if the inference ability can be learned entirely from training datat, and if the existing human knowledge can help these models? In this thesis, we will discovery the feasibility of enhancing natural language inference models with external knowledge. We construct 3 types of external knowledge modules based on semantic knowledge, linguistic knowledge and logic knowledge respectivly. Specificly, we aquire semantic relations between word pairs, putting them into model training by representing them as one-hot vector; also, we leverage the dependency relation of sentence to obtain phrase-level meaning representation; finally, we add logic knowledge into model through loss function. These three external knowledge modules show the ability of external knowledge. We test our modules on Mutli-NLI and SNLI datasets, and reach the state-of-the-art results.}\\
+\textbf{{\zihao{-4}【Keywords】:}}Natural Language Inference;\ \ External Knowledge;\ \ Logic Knowledge
+\end{abstract}
 
 \newpage
 %\ \\
@@ -135,7 +155,7 @@
 
 % 自然语言推理是什么
 
-人类有两种重要的获取新知识的途径，一种是对新事物进行观察归纳；另一种是通过已有知识推理得到新知识。前一种学习能力已经有许多人工智能研究上的长足进展，比如对于视觉的模拟，图像识别生成的研究\cite{}；对听觉的模拟，语音识别的研究\cite{}；对语言能力的模拟，自然语言处理，文本生成等的研究\cite{}。而对于另一种学习能力，关于推理能力的研究，仍然存在很大的挑战。关于推理的研究，从亚里士多德时期已经开始，逻辑学这门学科便是关于推理的学科，他们关注经典命题逻辑等形式化的推演问题。
+人类有两种重要的获取新知识的途径，一种是对新事物进行观察归纳；另一种是通过已有知识推理得到新知识。前一种学习能力已经有许多人工智能研究上的长足进展，比如对于视觉的模拟，图像识别生成的研究\cite{He2016DeepRL}；对听觉的模拟，语音识别的研究\cite{Chan2016ListenAA}；对语言能力的模拟，自然语言处理，文本生成等的研究\cite{Bahdanau2014NeuralMT, Vinyals2015ANC}。而对于另一种学习能力，关于推理能力的研究，仍然存在很大的挑战。关于推理的研究，从亚里士多德时期已经开始，逻辑学这门学科便是关于推理的学科，他们关注经典命题逻辑等形式化的推演问题。
 
 虽然命题逻辑在许多人工智能研究已经起到了至关重要的作用，但在真正通用的认知智能中，自然语言理解是不可或缺的一部分。认知、思维、语言等概念是密切相关的，关于思维的研究常常会转化成使用自然语言作为载体。因而在自然语言上的推理问题是一个检验人工智能的重要标准。从某种程度上，自然语言推理是自然语言理解的一个必要问题，能理解自然语言的机器必定要能够使用自然语言进行推理。
 
@@ -156,7 +176,7 @@
 
 此前关于自然语言推理的研究一直沿用经典逻辑以及自动定理证明的思路。这类方法主张先将自然语言转换为形式化语言(结构化语言)，再使用经典逻辑的推演方法或自动定理证明等技术进行推理演算，如果能够从前提推演出假设，则说明二者存在推演关系。虽然一阶逻辑能刻画生成的逻辑关系，但由于自然语言的含混性和歧义性，这类方法的泛化能力不强。
 
-最近随着基于概率的机器学习算法在人工智能的各个领域大放异彩，有学者开始使用机器学习和深度学习的研究方法应用在自然语言推理任务上，取得很大的突破。特别是在\cite{}贡献了一个大型的自然语言推理训练数据集SNLI后，训练复杂的神经网络变成可能，其效果十分显著。这类方法一般会将前提和假设映射到向量空间，得到连续的语义表示，然后使用分类器（譬如神经网络）进行分类，得到各个标签的概率，最终选择概率最高的标签作为预测结果。
+最近随着基于概率的机器学习算法在人工智能的各个领域大放异彩，有学者开始使用机器学习和深度学习的研究方法应用在自然语言推理任务上，取得很大的突破。特别是在\cite{Bowman2015ALA}贡献了一个大型的自然语言推理训练数据集SNLI后，训练复杂的神经网络变成可能，其效果十分显著。这类方法一般会将前提和假设映射到向量空间，得到连续的语义表示，然后使用分类器（譬如神经网络）进行分类，得到各个标签的概率，最终选择概率最高的标签作为预测结果。
 
 由于模型训练是完全端到端的，可以理解为，模型的推理能力完全由训练样本中习得。而且在判断前提和假设之间是否存在逻辑关系的时候，模型只会考虑前提和假设两个语句，不会加入任何其他额外的背景知识。我们不禁思考，推理能力是否能够完全的通过训练数据习得，逻辑关系是否可以只凭前提假设，不加入额外背景知识而推导得出。直观上，在人类进行推理的时候，往往需要借助自身的大量背景知识，以及一些逻辑规则。譬如下面这个例子：
 
@@ -190,10 +210,10 @@
 基于传统经典命题逻辑的研究方法判断逻辑关系的重要工具是一些先验的与语义无关的逻辑真理，譬如$(p\land q \to p)$。这些逻辑真理在形式逻辑推理上可以很方便的使用，但在自然语言推理上的应用方法尚不明朗。
 
 % 我的模型
-针对以上三种外部知识，本文基于\cite{}提出的DIIN模型，将以上三种知识都融合到模型当中。
+针对以上三种外部知识，本文基于\cite{yichen2018nli}提出的DIIN模型，将以上三种知识都融合到模型当中。
 具体的，我们首先根据每一个语句的词语之间的依赖信息，对每一个词，将它与它所依赖的词组合放入一个单层全连接层，计算得到其组合语言，用以丰富每一个词的语义表示。
 然后在语句交互层，我们将前提和结论之间的每一个词语对在WordNet中的关系抽象成一个低维向量，合并到句子交互矩阵上，进行特征抽取，从而获得关于词语之间的语义信息的特征。
-最后，我们将逻辑规则根据\cite{}中提出的师生学习方法融合到模型中。
+最后，我们将逻辑规则根据\cite{Hu2016HarnessingDN}中提出的师生学习方法融合到模型中。
 
 模型在SNLI和MultiNLI数据集上进行了测试，取得了很好的效果，证实了外部知识的有效性。
 
@@ -219,32 +239,32 @@
 
 \subsubsection{自动定理证明}
 
-基于自动定理证明的研究方法\cite{}先将自然语言语句$p$和$h$进行预处理以及形式化，得到一阶逻辑形式的命题；再使用自动定理证明\cite{}的技术进行推理演算。由于一阶逻辑的强表达力，这种方法可以很轻易的捕捉逻辑相关的推理范式，但对于一些语义层面的推理范式（例如近义词替换）比较难以解决。而且由于将自然语言语句映射到结构化形式化语言的自动化技术仍然面临需要挑战，所以这种方法的泛化能力不强。
+基于自动定理证明的研究方法\cite{Bos2005RecognisingTE, Abzianidze2017APL}先将自然语言语句$p$和$h$进行预处理以及形式化，得到一阶逻辑形式的命题；再使用自动定理证明\cite{Chang1973SymbolicLA}的技术进行推理演算。由于一阶逻辑的强表达力，这种方法可以很轻易的捕捉逻辑相关的推理范式，但对于一些语义层面的推理范式（例如近义词替换）比较难以解决。而且由于将自然语言语句映射到结构化形式化语言的自动化技术仍然面临需要挑战，所以这种方法的泛化能力不强。
 
 \subsubsection{自然语言逻辑}
 
 \textit{自然语言逻辑(Natural Logic)}
 
-相比形式逻辑更关注析取合取否定等逻辑关系的推理，自然语言的推理同时还需要关注语义层面的推理，比如上下位语义之间在量词上的蕴含关系、近义词语替换等。为了解决这些自然语言独有的问题，MccCartney 提出了自然语言逻辑推理(Natural Logic Inference)\cite{}。具体的，自然语言逻辑从前提出发，根据三种关系进行推演：全称存在量词关系、否定析取等逻辑词关系、实体词之间的上下位关系。构建完一棵推理树，穷尽所有叶节点，寻找假设或假设的否定，以判断前提和假设之间的关系。
+相比形式逻辑更关注析取合取否定等逻辑关系的推理，自然语言的推理同时还需要关注语义层面的推理，比如上下位语义之间在量词上的蕴含关系、近义词语替换等。为了解决这些自然语言独有的问题，MccCartney 提出了自然语言逻辑推理(Natural Logic Inference)\cite{MacCartney2007NaturalLF, Angeli2014NaturalLINL, }。具体的，自然语言逻辑从前提出发，根据三种关系进行推演：全称存在量词关系、否定析取等逻辑词关系、实体词之间的上下位关系。构建完一棵推理树，穷尽所有叶节点，寻找假设或假设的否定，以判断前提和假设之间的关系。
 
 %而且由于自然语言的含混性，自然语言推理对于推理关系的阈值更低，即这里的蕴含关系与经典逻辑中的蕴含关系还是有一点差别
 
 
 \subsection{基于神经网络的自然语言推理方法}
 
-神经网络在其他人工智能领域获得了很好的效果，由于网络模型一般复杂度都比较高，需要大量的标注训练数据。在SNLI数据集\cite{}和MultiNLI数据集的发布，为神经网络方法在自然语言推理研究奠定了良好的基石。自然语言推理上的神经网络模型可大致分为以下两种。
+神经网络在其他人工智能领域获得了很好的效果，由于网络模型一般复杂度都比较高，需要大量的标注训练数据。在SNLI数据集\cite{Bowman2015ALA}和MultiNLI数据集\cite{Nangia2017TheR2}的发布，为神经网络方法在自然语言推理研究奠定了良好的基石。自然语言推理上的神经网络模型可大致分为以下两种。
 
-\textit{句子编码模型(Sentence Encoding Based Model)}\cite{}的思想是，将前提和假设分别通过编码器，映射成低维稠密的向量表示；然后将编码后得到的向量表示作一些简单的关联，如相乘相减，再通过一个最终的决策层计算各个标签的概率。根据编码器和决策层的模块选择的不同而组成不同的网络形式。譬如
-\cite{Chen2017Recurrent}使用了三层双向RNN作编码器，并结合使用了词语级别表示和字符级别表示、
+\textit{句子编码模型(Sentence Encoding Based Model)}\cite{Conneau2017SupervisedLO, Yu2017NeuralSE, Chen2017RecurrentNN, Shen2017DiSAN, Choi2017LearningTC}的思想是，将前提和假设分别通过编码器，映射成低维稠密的向量表示；然后将编码后得到的向量表示作一些简单的关联，如相乘相减，再通过一个最终的决策层计算各个标签的概率。根据编码器和决策层的模块选择的不同而组成不同的网络形式。譬如
+\cite{Chen2017RecurrentNN}使用了三层双向RNN作编码器，并结合使用了词语级别表示和字符级别表示、
 \cite{Shen2017DiSAN}使用了一种定向多维的注意力机制作为编码器、
-\cite{Gumble}使用一个称为Gumble Tree-LSTM的结构作为编码器，以更好的捕捉解析树结构的语义。
+\cite{Choi2017LearningTC}使用一个称为Gumble Tree-LSTM的结构作为编码器，以更好的捕捉解析树结构的语义。
 不过这类方法有一个共同的问题，即编码器只关注句子本身，缺少对句子之间，也即前提和假设之间的关注。而推理关系很大程度上需要依靠前提和假设之间的关系作为判断依据。
 
 
-\textit{句子交互模型(Inter-sentence Based Model)}刚好补充了上面方法的缺点，这类模型注重前提和假设之间的交互信息，一般这种交互信息会通过每一句话中的每个词对另一句话的每个词的注意力来刻画。
+\textit{句子交互模型(Inter-sentence Based Model)}\cite{Wang2017Bilateral, Sha2016ReadingAT, chen2017enhanced, yichen2018nli}刚好补充了上面方法的缺点，这类模型注重前提和假设之间的交互信息，一般这种交互信息会通过每一句话中的每个词对另一句话的每个词的注意力来刻画。
 \cite{Wang2017Bilateral}将这种语句之间的匹配信息分成两个方向，多个维度来捕捉。
-\cite{Enhanced}提出一种增强的lstm单元，并同时应用在编码和交互推理模拟上。
-\cite{Diin}提出一种更加彻底的交互形式，将语句之间的每一个词的每一个维度相乘，得到一个三维的交互空间；再使用一些在计算机视觉领域获得很好效果的卷积神经网络模型，如DenseNet\cite{}获取特征。该模型得到了很好的效果。本文也将以该模型作为基准模型。
+\cite{chen2017enhanced}提出一种增强的lstm单元，并同时应用在编码和交互推理模拟上。
+\cite{yichen2018nli}提出一种更加彻底的交互形式，将语句之间的每一个词的每一个维度相乘，得到一个三维的交互空间；再使用一些在计算机视觉领域获得很好效果的卷积神经网络模型，如DenseNet\cite{Huang2017DenselyCC}获取特征。该模型得到了很好的效果。本文也将以该模型作为基准模型。
 
 
 
@@ -254,25 +274,25 @@
 \subsubsection{语义知识}
 
 结合语义知识的想法在其他自然语言处理任务上取得了很好的效果。一个主流的想法是，从一些已有的知识库如WordNet，Yago中学习低维稠密的知识表示，再将知识表示使用到模型训练当中，这样可以有机的将语义知识结合到模型中。如
-\cite{}提出再WordNet和NELL上学习了一些知识表示，再将知识表示结合到LSTM中，称为KBLSTM；该方法在机器阅读任务上取得不错效果。
+\cite{Yang2017LeveragingKB}提出在WordNet和NELL上学习了一些知识表示，再将知识表示结合到LSTM中，称为KBLSTM；该方法在机器阅读任务上取得不错效果。
 另一种思路是将关键信息通过实体关系对的形式提取出来，使用记忆网络的原型将外部知识存储成映射的形式，在使用时调取。
-\cite{}提出了通过将关键信息提取并生成语义向量，将语义向量额外使用在机器翻译上，能够使得关键信息不会被错误翻译或遗漏。
+\cite{Shi2016KnowledgeBasedSE}提出了通过将关键信息提取并生成语义向量，将语义向量额外使用在机器翻译上，能够使得关键信息不会被错误翻译或遗漏。
 
-在自然语言推理任务上，\cite{}使用一种更简单的知识表示方法。具体的，在前提和假设交互时，他从WordNet中获取每个词语对之间的语义关系，表示为一个五维离散向量(每一个维度表示一种语义关系)。再将这些五维语义关系向量应用在模型的编码层、推理层和最后的决策层上。该模型是第一个将外部知识融合到自然语言推理任务上的模型，取得了最好的效果，可以看出外部知识对推理的作用。
+在自然语言推理任务上，\cite{Chen2017NaturalLI}使用一种更简单的知识表示方法。具体的，在前提和假设交互时，他从WordNet中获取每个词语对之间的语义关系，表示为一个五维离散向量(每一个维度表示一种语义关系)。再将这些五维语义关系向量应用在模型的编码层、推理层和最后的决策层上。该模型是第一个将外部知识融合到自然语言推理任务上的模型，取得了最好的效果，可以看出外部知识对推理的作用。
 
 不过外部知识不只有语义知识一种，还包括语言学层面的句法知识，以及逻辑知识。这些信息在理解语言和推理上也起到了至关重要的作用。
 
 \subsubsection{语言学知识}
 
-由于CNN的窗口的局限性，没法捕捉到长距离依存的信息，\cite{}提出了一种在句法树上作扫描的方法，可以根据句法树的结构捕捉词语之间的语义特征。
+由于CNN的窗口的局限性，没法捕捉到长距离依存的信息，\cite{Ma2015DependencybasedCN}提出了一种在句法树上作扫描的方法，可以根据句法树的结构捕捉词语之间的语义特征。
 
-\cite{}提出了一个类似的方法，先将语句转换为依存解析树，每一个节点对应一个词。然后用一个子树特征检测器捕捉一些子结构特征。
+\cite{Mou2016NaturalLI}提出了一个类似的方法，先将语句转换为依存解析树，每一个节点对应一个词。然后用一个子树特征检测器捕捉一些子结构特征。
 
 \subsubsection{逻辑知识}
 
-对于分类问题，神经网络的最后一层输出一般是softmax，而softmax的一个输出与经典逻辑中的赋值是相似的。根据这种相似，\cite{}提出了语义损失函数，一个将关于输出值的逻辑规则融合到模型中的方法。他们设计了一个符合要求的语义损失函数，将满足逻辑规则的输出将达到更低的损失，而违背逻辑规则的输出相应会造成更大的损失。
+对于分类问题，神经网络的最后一层输出一般是softmax，而softmax的一个输出与经典逻辑中的赋值是相似的。根据这种相似，\cite{Xu2017ASL}提出了语义损失函数，一个将关于输出值的逻辑规则融合到模型中的方法。他们设计了一个符合要求的语义损失函数，将满足逻辑规则的输出将达到更低的损失，而违背逻辑规则的输出相应会造成更大的损失。
 
-\cite{}提出了一种基于模型蒸馏的融合逻辑规则的方法。算法分为老师模型和学生模型，迭代学习。每一个迭代步骤，先让学生网络学习训练数据，然后通过将学生网络投影到一个由逻辑规则限制的子空间，得到老师网络。再将通过老师网络的预测结果和真实预测结果做加权平均得到损失，用以反向传播更新学生网络的参数。
+\cite{Hu2016HarnessingDN, Hu2016DeepNN}提出了一种基于模型蒸馏的融合逻辑规则的方法。算法分为老师模型和学生模型，迭代学习。每一个迭代步骤，先让学生网络学习训练数据，然后通过将学生网络投影到一个由逻辑规则限制的子空间，得到老师网络。再将通过老师网络的预测结果和真实预测结果做加权平均得到损失，用以反向传播更新学生网络的参数。
 
 
 
@@ -282,7 +302,7 @@
 \newpage
 \section{知识稠密交互推理网络 KDIIN}
 
-这一节将介绍我们的模型———知识稠密交互推理网络(Knowledge Density Interactive Inference Network)。该模型是基于\cite{}提出的稠密交互推理模型(DIIN)之上，增加三个外部知识模块而构成的。因而我们将先介绍基础模型DIIN，然后再介绍三个外部知识增强模块，分别对于语义知识、句法知识和逻辑知识。由于整个DIIN模型只使用了注意力机制，一些全联接操作以及卷积操作，没有使用递归神经网络的递归机制，所以可以简单的并行处理，能够得到很好的效率提升。为了保持这个优点，我们结合外部知识的模块也没有采用任何递归或序列的操作，使得模型仍然保持高可并行性。
+这一节将介绍我们的模型———知识稠密交互推理网络(Knowledge Density Interactive Inference Network)。该模型是基于\cite{yichen2018nli}提出的稠密交互推理模型(DIIN)之上，增加三个外部知识模块而构成的。因而我们将先介绍基础模型DIIN，然后再介绍三个外部知识增强模块，分别对于语义知识、句法知识和逻辑知识。由于整个DIIN模型只使用了注意力机制，一些全联接操作以及卷积操作，没有使用递归神经网络的递归机制，所以可以简单的并行处理，能够得到很好的效率提升。为了保持这个优点，我们结合外部知识的模块也没有采用任何递归或序列的操作，使得模型仍然保持高可并行性。
 
 \subsection{基础模型}
 
@@ -292,11 +312,14 @@ DIIN是一个结合了注意力机制和交互的神经网络模型，整个可�
 DIIN先将两个语义表示过同一个高速神经网络层(Highway Network)，得到$p^{hw}`$与$h^{hw}$，再过一个自注意力机制层(Self-attention)，得到$p^{sa}$和$h^{sa}$。再将两个编码结果经过一个融合门(Fuse Gate)进行融合，得到最后编码完成的$p^{enc}$与$h^{enc}$，具体融合公式如下：
 \begin{equation}
 z_i = tanh(W^{1\top}[p^{hw}_i;p^{sa}_i]+b^1)
-
+\end{equation}
+\begin{equation}
 r_i = \sigma(W^{2\top}[p^{hw}_i;p^{sa}_i]+b^2)
-
+\end{equation}
+\begin{equation}
 f_i = \sigma(W^{3\top}[p^{hw}_i;p^{sa}_i]+b^3)
-
+\end{equation}
+\begin{equation}
 p^{enc}_i = r_i \circ p^{hw}_i + f_i \circ z_i
 \end{equation}
 
@@ -306,23 +329,24 @@ p^{enc}_i = r_i \circ p^{hw}_i + f_i \circ z_i
 
 \begin{equation}
 I_{i,j} = \beta(p^{enc}_i, h^{enc}_j) \in \mathbb{R}^d, \forall i, j \in [1,\dots,n]
-
+\end{equation}
+\begin{equation}
 \beta(a, b) = a \circ b
 \end{equation}
 
 一般交互都是两个矩阵相乘得到一个$n\times n$的矩阵，而这里DIIN采用了颗粒度更细更稠密的交互方式，得到$n\times n \times d$的三维矩阵，即每一个矩阵的每一个元素相乘，这样可以尽可能保留更多的原始特征，因而称为稠密交互。
 
-最后，我们将三维稠密交互矩阵$I$经过特征抽取层。由于是一个三维矩阵，这里采用了在计算机视觉取得很好效果的网络结构DenseNet层\cite{}进行特征抽取，并将输出压平输入一个全连接层，最后进行softmax，输出三个值，分别代表“蕴涵”、“中立”和“矛盾”的概率。
+最后，我们将三维稠密交互矩阵$I$经过特征抽取层。由于是一个三维矩阵，这里采用了在计算机视觉取得很好效果的网络结构DenseNet层进行特征抽取，并将输出压平输入一个全连接层，最后进行softmax，输出三个值，分别代表“蕴涵”、“中立”和“矛盾”的概率。
 
-%以上是DIIIN模型的框架。
+图1是DIIIN模型的框架。
 
-%\begin{table}[htbp]
+\begin{table}[htbp!]
 %\begin{figure}
-%\centering
-%\includegraphics[width=0.69\linewidth]{model_encoder_decoder}
-%\caption{序列除噪自动编码器的模型示意图}\label{fig:01}
+\centering
+\includegraphics[width=1\linewidth]{diin}
+\caption*{图 1： DIIN稠密交互网络架构示意图}%\label{fig:01}
 %\end{figure} 
-%\end{table}
+\end{table}
 
 \subsection{语义知识}
 % 知识库的构成
@@ -344,6 +368,56 @@ I_{i,j} = \beta(p^{enc}_i, h^{enc}_j) \in \mathbb{R}^d, \forall i, j \in [1,\dot
 
 前提和假设之间没有逻辑关系，要判断出这之间的蕴含关系，必须要能发现“启发性”和“激发”两个词之间的语义相似关系。虽然我们的模型使用预训练的词向量，语义相似的词的词向量之间的距离会更近，一定程度上可以刻画出这种语义相似关系。但如果我们可以借助知识图谱的帮助，显示的将这种语义近似关系作为特征放入网络中学习，可能可以更好的捕捉这些相似特征。而且，除了语义相似关系，还有很多如“上下位关系”，“反义关系”等并不能同词向量刻画，而这些关系在推理过程中也起到了至关重要的作用。因此我们认为从知识图谱中获取前提和假设之间的语义关系可以提升模型的效果。
 
+
+\begin{table}[!htbp]
+\centering\small \vspace{-1em} 
+\[ 
+\begin{array}{lrr}
+\textbf{类型} & \textbf{$\#$词数} & \textbf{\#词对数}\\
+\toprule
+\textsl{Synonymy}& 84,487& ~~~~~~237,937\\
+\textsl{Antonymy}& 6,161& 6,617\\
+\textsl{Hypernymy}& 57,475& 753,086\\
+\textsl{Hyponymy}& 57,475 &753,086\\
+\textsl{Same Hypernym}& 53,281& 3,674,700
+\end{array}
+\]
+\caption*{表 1: WordNet的关系特征的关键统计信息.}
+\end{table}
+
+
+\begin{table}[htbp!]
+\centering \footnotesize 
+\begin{tabular}{p{8em}p{23em}p{9.5em}}
+\multicolumn{1}{c}{\bf 类型} 
+&\multicolumn{1}{c}{\bf 定义} 
+&\multicolumn{1}{c}{\bf 实例}\\
+\toprule
+Synonymy 
+&It takes the value 1 if the words in the pair are synonyms in WordNet (i.e., belong to the same synset), and 0 otherwise. Specifically, it takes value 1 when two words are same.&
+\Gape[-1em][2em]{\makecell[l]{\ \\{[felicitous, good$]=1$}\\{[dog, wolf$]=0$}}}\\
+Antonymy
+& It takes the value $1$ if the words in the pair are antonyms in WordNet, and $0$ otherwise.
+& [wet, dry$] = 1$\\
+Hypernymy 
+& It takes the value $1-n/8$ if one word is a (direct or indirect) hypernym of the other word in WordNet, where $n$ is the number of edges between the two words in hierarchies, and $0$ otherwise. 
+& \Gape[1em][-1em]{\raise-2.3em\hbox{\makecell[l]{{[dog, canid$]= 0.875$}\\{[wolf, canid$]= 0.875$}\\
+{[dog, carnivore$]= 0.75$}\\
+{[canid, dog$] = 0$}}}} \\
+Hyponymy
+&It takes the value $1-n/8$ if a word is a (direct or indirect) hyponym of the other word in WordNet, where $n$ is the number of edges between the two words in hierarchies, and $0$ otherwise.
+& \Gape[0em][-1em]{\raise-2.3em\hbox{\makecell[l]{{[canid, dog$] = 0.875$}\\
+{[canid, wolf$]= 0.875$}\\
+{[carnivore, dog$]= 0.75$}\\
+{[dog, canid$] = 0$}}}}\\
+Same Hypernym
+&It takes the value $1$ if the two words have the same hypernym but they do not belong to the same synset, and $0$ otherwise.
+&[dog,wolf$] = 1$\\
+\end{tabular}
+\caption*{表 2: 语义知识模块使用的五个关系特征的解释.}
+\end{table}
+
+
 % 我们怎么实现的
 
 我们的主要目的是识别出前提和假设之间的语义关系，因而我们将语义知识模块添加在语义交互层。具体的，交互矩阵$I^{sk} \in \mathbb{R}^{n \times n \times (d+v)}$的构造如下公式：
@@ -354,7 +428,7 @@ I_{i,j} = [\beta(p^{enc}_i, h^{enc}_j); r_{ij}] \in \mathbb{R}^{d+v}, \forall i,
 
 其中$r$是一个$n\times n times v$的语义矩阵，代表了前提和假设之间的语义关系，$r_{ij} \in \mathbb{R}^v$代表前提中第$i$个词和假设中第$j$个词的语义关系。
 
-我们希望两个词之间的语义关系可以使用向量的形式进行表示，这样可以比较简单的融合到模型当中，而知识图谱中的知识是离散的。已有许多将知识图谱向量化的工作\cite{}，大部分工作都将知识图谱以不同的形式放入神经网络中训练学习，得到各个实体和关系对应的向量表示。但这类方法都需要额外的训练，所以这里我们跟从\cite{}的方法，使用one-hot的表示形式。具体的，我们使用WordNet知识图谱中的五种关系：上位关系、下位关系、近似关系、反义关系、邻居关系。对于一个词语对，如果他们满足以上关系则为1，否则为0。将五个数字拼接起来可以得到一个五维向量表示。具体的计算方式如下表所示。
+我们希望两个词之间的语义关系可以使用向量的形式进行表示，这样可以比较简单的融合到模型当中，而知识图谱中的知识是离散的。已有许多将知识图谱向量化的工作\cite{Lin2015LearningEA, Bordes2013TranslatingEF, }，大部分工作都将知识图谱以不同的形式放入神经网络中训练学习，得到各个实体和关系对应的向量表示。但这类方法都需要额外的训练，所以这里我们跟从\cite{Chen2017NaturalLI}的方法，使用one-hot的表示形式。具体的，我们使用WordNet知识图谱中的五种关系：上位关系、下位关系、近似关系、反义关系、邻居关系。对于一个词语对，如果他们满足以上关系则为1，否则为0。将五个数字拼接起来可以得到一个五维向量表示。具体的计算方式如表2所示。
 
 将语义关系矩阵作为特征合并到交互矩阵之下，可以显式的表示出各个词语对的语义关系信息，在下一层的特征提取层中可以更容易的获取这些语义相关的特征。
 
@@ -364,7 +438,45 @@ I_{i,j} = [\beta(p^{enc}_i, h^{enc}_j); r_{ij}] \in \mathbb{R}^{d+v}, \forall i,
 % 组合获得短语的语义的重要性
 根据弗雷格的组合语义理论\cite{}，一个命题的语义由它的子命题所组成。在自然语言的范畴中，一句话的语义也由它的各个词语组成。组合的方式通常是依靠句法解析树来完成的。句法解析树是根据一个语句中的句法信息，和其之间的依存关系，将一个一句话映射成一颗树。每一个叶子节点对应一个词语，中间节点为句法标签。
 
-我们可以根据依存句法树，由底至顶的通过一些操作将所有词语的语义组合得到完整的语句的语义。\cite{}提出的递归神经网络便是依照这种思路，每一个词语由其词向量表示，依循句法树，遇到中间节点便作一个向量操作（比如加权求和等）得到中间节点的向量表示；并继续往上组合，最后得到语句语义。但这种方法的缺点是它依然是近似序列化的操作，难以并行处理，效率不高。因而我们将采用另一种组合语义方法，并不试图获取整个语句的语义表示，而是试图获取各个短语的语义表示。
+我们可以根据依存句法树，由底至顶的通过一些操作将所有词语的语义组合得到完整的语句的语义。\cite{Socher2012SemanticCT}提出的递归神经网络便是依照这种思路，每一个词语由其词向量表示，依循句法树，遇到中间节点便作一个向量操作（比如加权求和等）得到中间节点的向量表示；并继续往上组合，最后得到语句语义。但这种方法的缺点是它依然是近似序列化的操作，难以并行处理，效率不高。因而我们将采用另一种组合语义方法，并不试图获取整个语句的语义表示，而是试图获取各个短语的语义表示。
+
+
+\begin{table}\centering
+
+
+
+\Tree[.ROOT
+[.S [.NP 
+       [.DT The ]
+       [.JJ new ]
+       [.NNS rights ]  ]
+    [.VP 
+       [.VBP are ]
+       [.ADJP 
+           [.JJ nice ]
+           [.RB enough ]  ] ] 
+] ]
+
+\vspace{2em}
+
+\Tree[.ROOT
+[.S [.NP 
+       [.{DT The} ]
+       [.{JJ new} ]
+       [.{NNS rights} ] ]
+    [.VP 
+       [.{VBP are} ]
+       [.ADJP [.{JJ nice} ][.{RB enough} ] ] ] ] ]
+
+\vspace{2em}      
+       
+\Tree [.S
+[.The [.new ] [.right ]  ] 
+[.are [.nice ] [.enough ] ]
+]
+
+\caption*{图 2: The new rights are nice enough.的三种句法树表示方法，由上至下分别为：完整句法依存树、将词语最后的标签与词语合并表示的句法依存树、将所有标签省略的句法依存树}
+\end{table}
 
 在DIIN的模型中，我们是以词语为单位进行向量化和交互的，但很多时候一些短语整体理解和拆开理解是两种意思，这时必须将短语整体理解。考虑下面的例子：
 
@@ -379,7 +491,7 @@ h: It would be helpful if we could have a soft and hard copy of your comments.
 
 
 % 怎么实现的
-对于每一个词，如果有词语依赖于它，我们希望将它与依赖它们的词语进行组合，得到这几个词组合后的语义表示。下面我们描述如何选取依赖词。给定一个句法依存树，如下图所示(为了分析方便，我们不再将词语的标签作为词语的父节点，而是将它们合并作为一个节点)，每一个叶子节点是一个词语。对于每一个词$t_i$，它所对应的依赖节点$c_ij$为$t_i$的兄弟节点，或兄弟节点的子（叶）节点。譬如下面的例子，“The”的依赖节点为“new”和“rights”；“and”的依赖节点为“nice”和“enough”；“nice”没有依赖节点。如果使用隐去句法标签的简化版二元句法依存树进行表示，则每一个词的依赖节点为其子节点及孙子节点（子节点的子节点）。
+对于每一个词，如果有词语依赖于它，我们希望将它与依赖它们的词语进行组合，得到这几个词组合后的语义表示。下面我们描述如何选取依赖词。给定一个句法依存树，如图2所示(为了分析方便，我们不再将词语的标签作为词语的父节点，而是将它们合并作为一个节点)，每一个叶子节点是一个词语(对应图2中间的树表示)。对于每一个词$t_i$，它所对应的依赖节点$c_ij$为$t_i$的兄弟节点，或兄弟节点的子（叶）节点。譬如下面的例子，“The”的依赖节点为“new”和“rights”；“and”的依赖节点为“nice”和“enough”；“nice”没有依赖节点。如果使用隐去句法标签的简化版二元句法依存树(图2的最下面的树表示)进行表示，则每一个词的依赖节点为其子节点及孙子节点（子节点的子节点）。
 
 %{"annotator_labels": ["neutral", "entailment", "neutral", "neutral", "neutral"], "genre": "slate", "gold_label": "neutral", "pairID": "364186n", "promptID": "364186n", "sentence1": "The new rights are nice enough", 
 %"sentence1_binary_parse": "( ( The ( new rights ) ) ( are ( nice enough ) ) )",
@@ -389,9 +501,7 @@ h: It would be helpful if we could have a soft and hard copy of your comments.
 接下来我们使用子树依存特征组合器来获取依存语义表示，我们使用一个线性组合来模拟组合器。给定一个词的语义编码后的形式$t_{i}$，以及其$k$个依赖节点$c_{ij}$，$j \in \{1,\dots,k\}$。其中所有$t_{i}, c_{ij}$都是$p^{enc}$或$h^{enc}$中的向量。依存表示$t^{dep}_i \in \mathbb{R}^u$计算如下：
 
 \begin{equation}
-
 t^{dep}_i = f(W^t \dot t_i + W^c \dot \sum^{k}_{j=1}c_{ij} + b^{dep})
-
 \end{equation}
 
 其中$W^t, W^c \in \mathbb{R}^{u \times d}$，$b^{dep} \in \mathbb{R}^{u}$是可训练的参数。$f$为激活函数，这里我们采用ReLU(Rectified Linear Units)。
@@ -400,11 +510,10 @@ t^{dep}_i = f(W^t \dot t_i + W^c \dot \sum^{k}_{j=1}c_{ij} + b^{dep})
 
 然后我们将原先的语义表示和依存语义表示合并，如此可以得到包含短语语义的更丰富的语义表示$p^{ed}$和 $h^{ed}$:
 \begin{equation}
-
 p^{ed} = [p^{enc}; p^{dep}]
-
+\end{equation}
+\begin{equation}
 h^{ed} = [h^{enc}; h^{dep}]
-
 \end{equation}
 
 
@@ -422,7 +531,7 @@ h^{ed} = [h^{enc}; h^{dep}]
 % 怎么实现的
 将逻辑规则融入训练的一个直观的想法是，在训练的时候，判断训练样本的前提是否可以根据逻辑规则蕴涵假设，如果判断结果与模型预测结果不一致，我们希望能让模型的预测结果和判断结果变得一致。为了达到这个目的，可以让模型的参数作一些改变，使得它能做出符合根据逻辑规则判断的预测。这样的模型我们认为比原始模型要好，因为它的预测能力不止是通过训练数据学习得到的，还可以很好的满足逻辑规则的判断。
 
-假设原始训练得到的模型为$p_\theta$，满足逻辑规则的模型为$q$，根据\cite{}的方法，可以将逻辑规则看做一些约束，并将问题归约成最小化以下优化问题：
+假设原始训练得到的模型为$p_\theta$，满足逻辑规则的模型为$q$，根据\cite{Hu2016HarnessingDN}的方法，可以将逻辑规则看做一些约束，并将问题归约成最小化以下优化问题：
 \begin{equation}
 min_{q} KL(q(Y|X) || p_\theta(Y|X)) - \text{Constraint}
 \end{equation}
@@ -439,13 +548,13 @@ min_{q \in P} KL(q(Y)|| p_\theta(Y|X)) - C \sum_l \lambda_l E_q[f_l(X,Y)]
 
 其中$C$是约束参数。
 
-根据上面的最优化问题，可以推演得到以下解\cite{}:
+根据上面的最优化问题，可以推演得到以下解\cite{Hu2016HarnessingDN}:
 
 \begin{equation}
-q^*(Y|X) \propto p_\theta(Y|X) \text{exp} \big{ -\sum_{l,gl}C\lambda_l(1-r_{l,gl}(X,Y)) \big}
+q^*(Y|X) \propto p_\theta(Y|X) \text{exp} \big{\{} -\sum_{l,gl}C\lambda_l(1-r_{l,gl}(X,Y)) \big{\}}
 \end{equation}
 
-虽然我们可以在$p$训练收敛之后，再通过上述方法得到$q$，就像模型蒸馏技术\cite{}一样。但根据实验结果，发现迭代式的同时学习$p$和$q$的效果会更好。\cite{}将$p$称为学生模型，$q$称为老师模型。具体流程是，在第$t$次迭代，假定已有$p_\theta^{(t)}$，然后由$p^{(t)}$通过上面公式得到$q^{(t)}$。在根据以下公式将$q^{(t)}$的预测结果和真实结果$y$作平衡，以更新$p$的参数$\theta$得到$p_\theta^{(t+1)}$
+虽然我们可以在$p$训练收敛之后，再通过上述方法得到$q$，就像模型蒸馏技术\cite{Hinton2015DistillingTK, LopezPaz2015UnifyingDA}一样。但根据实验结果，发现迭代式的同时学习$p$和$q$的效果会更好。\cite{Hu2016HarnessingDN}将$p$称为学生模型，$q$称为老师模型。具体流程是，在第$t$次迭代，假定已有$p_\theta^{(t)}$，然后由$p^{(t)}$通过上面公式得到$q^{(t)}$。在根据以下公式将$q^{(t)}$的预测结果和真实结果$y$作平衡，以更新$p$的参数$\theta$得到$p_\theta^{(t+1)}$
 
 \begin{equation}
 \theta^{(t+1)} = argmin_{\theta\in \Theta} \frac{1}{N}\sum^N_{n=1}(1-\pi)l(y_n,\sigma_\theta(x_n)) + \pi l(s^{(t)}_n,\sigma_\theta(x_n)) 
@@ -481,15 +590,16 @@ q^*(Y|X) \propto p_\theta(Y|X) \text{exp} \big{ -\sum_{l,gl}C\lambda_l(1-r_{l,gl
 
 根据模糊逻辑的真值运算规则：
 \begin{equation}
-A \vee B = min\{A+B,1\}
-
-A \land B = (A + B) / 2
-
-\neg A = 1 - A
-
+v(A \vee B) = min\{v(A)+v(B),1\}
+\end{equation}
+\begin{equation}
+v(A \land B) = (v(A) + v(B)) / 2
+\end{equation}
+\begin{equation}
+v(\neg A) = 1 - v(A)
 \end{equation}
 
-可将上式真值化简得到，当$y=Entailment$时，真值为$\frac{min\{p_1+p_2,1\}+1}{2}$；否则真值为\frac{2-min\{p_1+p_2,1\}}{2}
+可将上式真值化简得到，当$y=Entailment$时，真值为$\frac{min\{\sigma_\theta(p_1)_E+\sigma_\theta(p_2)_E,1\}+1}{2}$；否则真值为$\frac{2-min\{\sigma_\theta(p_1)_E+\sigma_\theta(p_2)_E,1\}}{2}$
 
 % 讨论如何训练
 \subsection{模型训练}
@@ -500,7 +610,7 @@ A \land B = (A + B) / 2
 基础模型中的嵌入层(embedding)参数、语义编码层中的高速网络参数、特征获取层的DenseNet的参数、以及最后的全连接层的参数；语义知识的参数计入了DenseNet中；句法依存知识中的线性组合的参数。
 
 % 怎么训练，训练方法，loss使用什么，
-我们使用交叉熵作为损失函数，并加入了L2正则项，避免模型过拟合。同时我们使用批量梯度下降训练参数，并使用AdaDelta\cite{}作为参数更新方法。
+我们使用交叉熵作为损失函数，并加入了L2正则项，避免模型过拟合。同时我们使用批量梯度下降训练参数，并使用AdaDelta\cite{Zeiler2012ADADELTAAA}作为参数更新方法。
 
 % 三种知识的获取
 关于外部知识模块的获取，语义知识是通过WordNet获取的；句法依存知识通过Stanford PCFG句法解析器对语句解析得到。
@@ -509,81 +619,63 @@ A \land B = (A + B) / 2
 
 
 \section{实验}
-为了验证我们的外部知识框架的有效性，我们在MultiNLI和SNLI两个数据集上对模型进行了测试。通过增加三种简单而有效的外部知识模块，模型在两个数据集上都有了提升，达到了目前最好的效果。
+为了验证我们的外部知识框架的有效性，我们在MultiNLI和SNLI两个数据集上对模型进行了测试和实验。通过增加三种简单而有效的外部知识模块，模型在两个数据集上都有了提升，达到了目前最好的效果。这一节将先通过比较KDIIN和基础模型来验证模型的有效性，然后我们会通过缺省实验探讨分析各个外部知识模块的作用。
+
+\subsection{数据}
+我们将先介绍所使用的数据集。我们的评估方式是看模型在测试集上的准确率。
+
+\subsubsection{SNLI} 斯坦福自然语言推理数据集SNLI (Stanford Natural Language Inference)\cite{Bowman2015ALA}有将近五十七万条人类标注的训练样本。每一个样本是一个语句对，分别代表前提和假设。前提是由Flick30k语料库的标题组成的，而假设是根据前提人工构造的。每一个样本会有一个标签，为“entailment”、“neutral”、“contradiction”、“-”中的一个，其中“-”表明标注者们没法在这一条数据上统一意见。每一条样本都会由五个标注者给出标注，并且将大于等于三票的标签作为“黄金标签”(gold-label)。我们没有将标为“-”的数据放入训练。
+
+\subsubsection{MultiNLI} 多体裁自然语言推理数据集MultiNLI (Mulit-Genre NLI Corpus)\cite{Nangia2017TheR2}有四十三万条训练数据，其收集和标注方法都与SNLI一样。不过MultiNLI的前提是从各个类别的美式英语文章中收集来的，这些类别包括一些非小说书写体(SLATE, OUP, GOVERNMENT, VERBATIM, TRAVEL)，也包含一些口语体裁（TELEPHONE, FACE-TO-FACE），一些正式书写体（FICTION, LETTERS）和一些特殊体裁（9/11）。训练数据只包含一半体裁的样本，这样可以分成领域内的和领域外的两种测试数据，可以更好的测试模型的泛化能力。
 
 \subsection{实验配置}
+实验配置基本参照\cite{yichen2018nli}中的配置。我们使用Adadelta优化方法来训练参数，其中$\rho=0.95$, $\epsilon=1e-8$。学习率初始化为0.5。由于内存问题，我们将批量数从70调整至48，这可能有点影响收敛速度。在优化至30000步后，如果模型不再提升，我们将使用一个学习率为3e-4的随机梯度下降优化器进行优化，以找到更好的局部最优值。所有的线性操作前都做了Dropout操作，以避免过拟合，同时，词向量层之后也做了Dropout操作。Dropout操作的保持率(keep rate)根据训练步数而变化，初始化为1.0，并每10000步以0.977的指数衰减率衰减。我们使用\cite{Pennington2014GloveGV}的预训练300维 GloVe 840B词向量作为初始化，未在词表中的词将使用随机初始化。由于没有预训练的字符级别向量，所以字符向量都采用随机初始化。所有的参数都使用L2正则作为约束。关于DenseNet的设置，我们将层数设置为8，增长率(growth rate)设置为20。在特征抽取层的FSDR(First scale down rate)设为0.3，TSDR(Transitional scale down ratio)设置为0.5。我们将实验中的句子长度设为固定长度，MultiNLI的长度为48个词，SNLI为32个词，能覆盖将近99\%的句子长度。对于MultiNLI数据集上的实验，我们将仿照\cite{Nangia2017TheR2}，使用15\%的SNLI数据集作为训练数据。
 
 
+% 做0.001 0.01 0.1 1 四种实验，看不同比例的数据量的提升
 \subsection{Multi-NLI数据集}
+
+基础模型的准确率是78.8，77.8
+
+当前我们最好的模型的准确率是79.2和79.4。此部分后续会以表格形式补上。
+
 \subsection{SNLI数据集}
+
+基础模型的准确率为88.0
+
+我们的模型尚未测试
+
+% 做三个成分的分开实验，也可以考虑
 \subsection{缺省实验}
 %三个模块，以及样本比例
 
+将使用0.001， 0.01， 0.1 和 1 数量的训练数据作训练，比较三个外部知识模块单独加入模型时的效果。
+
+这部分数据将在后面以图的方式补上。
+
+基础模型在数据量1时的准确率为78.8 和 77.8
+
+增加语义知识的模型在数据量为1时的准确率为79.1 和 78.7
+
+增加依存知识的模型在数据量为1时的准确率为78.9 和 78.6
+
+增加逻辑知识的模型在数据量为1时的准确率为78.7 (此部分正在继续调整规则)
+
 \subsection{误差分析}
 
-
-%\begin{table}[htbp]
-\begin{figure}
-\centering
-\includegraphics[width=0.95\linewidth]{attention}
-\caption{注意力机制效果示意}\label{fig:02}
-\end{figure} 
-%\end{table}
-
-
-
-\subsection{主题分析}
-
-
-以下是各个方法的在每个主题词下计算出的最相关的5个文档：
-
-
-\begin{longtable}{|p{5 em}|l|l|l|}
-\hline
-Method & 人工智能 & 教育 & 制造业 \\
-\hline
-%\multirow{5}{*}{Multi-Row} &
-%\multicolumn{2}{c|}{Multi-Column} &
-%\multicolumn{2}{c|}{\multirow{2}{*}{Multi-Row and Col}} \\
-%\cline{2-3}
- & 宁波三星医疗电气 & 吉视传媒 & 新疆雪峰科技 \\ 
- & 远东智慧能源股份 & 上海宝信软件 &  上海电气集团\\ 
-TF-IDF & 南京音飞储存设备 & 江苏省广电有线信息网络 & 航天时代电子技术 \\ 
- & 曙光信息产业 & 安徽新华传媒 & 上海晨光文具 \\  
- & 重庆川仪自动化 & 江苏凤凰出版传媒 & 中材节能 \\ 
-\hline
- & 华锐风电科技(集团) & 中国核能电力 & 中信重工机械 \\ 
- & 南威软件 & 江苏凤凰出版传媒 & 上海机电 \\ 
-LDA & 际华集团 & 中南出版传媒集团 & 中国船舶重工 \\ 
- & 曙光信息产业 & 读者出版传媒 & 安徽四创电子 \\  
- & 上海宝信软件 & 中国核工业建设 & 上海电气集团 \\ 
-\hline
- & 中炬高新技术实业 & 吉视传媒 & 黑龙江珍宝岛药业 \\ 
- & 湖南百利工程科技 & 引力传媒 & 佛山市海天调味食品 \\ 
-Denoising & 北京高能时代环境技术 & 广州广日 & 山东华鹏玻璃 \\ 
-Autoencoder & 宁波弘讯科技 & 南方出版传媒 & 华电重工 \\  
- & 北矿科技 & 招商证券 & 宁波弘讯科技 \\ 
-\hline
-\caption{各个方法在三个关键词下获取的公告所属公司比较}\label{tbl:01}
-\end{longtable}
-
+后续补上。
 
 
 
 %\addcontentsline{toc}{section}{结论}
 \section{结论}
 
-本文提出了一种基于序列除噪自动编码器思想的无监督文本语义学习方法，既可以学习短语句的语义表示，也可以简单推广到长文本的语义表示获取。我们采用带有注意力机制的双向LSTM作为编码器，获得固定结构的矩阵表示。然后经过最大化池化，得到的向量被放入一个seq2seq的LSTM解码器中，目标输出是原文本。这样的学习方法不需要大量的标注数据，而且生成的语义表示可以被使用在多种自然语言处理任务中。
+结论
 
 
 \section{致谢}
 
-很感谢中山大学数学学院能提供机会给我们这些身在其他院系，但内心却也对数学有一颗炙热的心的同学，让我们也能一略数学之美。
-由衷的感谢黄志洪老师在毕业论文上对我的指导；更加感谢他在数据挖掘，机器学习领域上对我的启蒙，让我找到振奋人心而值得交付未来的事情。
-也感谢天河二号超级计算中心对本篇论文提供的计算资源，以及梁汉全工程师在使用过程中给予我的耐心的帮助。
-还要我的父母，多年来含辛茹苦，在经济上精神上不遗余力的给予我支持，没有他们，就没有我。
-行文至此，我的数学学位修读终于要添上一个重彩浓墨的句号，不过，我在漫漫数学之旅上还只是刚刚在起点。
-
+谢谢
 
 \newpage
 \addcontentsline{toc}{section}{参考文献}
