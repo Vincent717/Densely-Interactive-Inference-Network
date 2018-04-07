@@ -152,18 +152,25 @@ class modelClassifier:
     def get_word_sequence(self, idxs):
         return [indices_to_words.get(i, '') for i in idxs]
 
-    def find_index(self, ls, inds):
+    def find_index(self, ls, inds, wrds, comma_after):
         # res = []
         # for i in range(len(ls)):
         #     if ind in ls[i]:
         #         res.append([i, np.argwhere(ls[i]==ind)[0][0]])
         # res += [[-1,-1]]* (40-len(res))
         # return res
-        for ind in inds:
+        for ind, wrd in zip(inds, wrds):
             if ind in ls:
-                return np.argwhere(ls==ind)[0][0]
-            else:
-                return -1
+                res = np.argwhere(ls==ind)[0][0]
+                if res < 4 or res > len(ls)-4:
+                    continue
+                if wrd == "," and not ls[res+1] in comma_after:
+                    continue
+                if wrd in ["''", ".", ",", ";"]:
+                    return res + 1
+                else:
+                    return res
+        return -1
 
 
     def get_minibatch(self, dataset, start_index, end_index, training=False, use_wn=False):
@@ -209,10 +216,13 @@ class modelClassifier:
             hypothesis_dependency = 1
 
         if config.use_logic:
-            and_words = [',', '.', 'and', 'or']
-            and_dics = [word_indices.get(w, -1) for w in and_words] 
+            #and_words = ['.', ',', 'and']
+            and_words = [".", "''", ";", ",", "but", "because"]
+            comma_after = ["and", "or", "but", "because"]
+            and_dics = [word_indices.get(w, -1) for w in and_words]
+            comma_dics = [word_indices.get(w, -1) for w in comma_after]
             #and_index = np.array(self.find_index([dataset[i]['sentence1_binary_parse_index_sequence'][:] for i in indices],and_dic))
-            and_index = np.array([self.find_index(dataset[i]['sentence1_binary_parse_index_sequence'][:], and_dics) for i in indices])
+            and_index = np.array([self.find_index(dataset[i]['sentence1_binary_parse_index_sequence'][:], and_dics, and_words, comma_dics) for i in indices])
         else:
             and_index = 1
 
