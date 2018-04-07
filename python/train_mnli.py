@@ -57,12 +57,12 @@ if config.debug_model:
 else:
 
     logger.Log("Loading data SNLI")
-    training_snli = load_nli_data(FIXED_PARAMETERS["training_snli"], snli=True)
+    training_snli = load_nli_data(FIXED_PARAMETERS["training_snli"], snli=True, ratio=config.data_ratio)
     dev_snli = load_nli_data(FIXED_PARAMETERS["dev_snli"], snli=True)
     test_snli = load_nli_data(FIXED_PARAMETERS["test_snli"], snli=True)
 
     logger.Log("Loading data MNLI")
-    training_mnli = load_nli_data(FIXED_PARAMETERS["training_mnli"])
+    training_mnli = load_nli_data(FIXED_PARAMETERS["training_mnli"], ratio=config.data_ratio)
     dev_matched = load_nli_data(FIXED_PARAMETERS["dev_matched"])
     dev_mismatched = load_nli_data(FIXED_PARAMETERS["dev_mismatched"])
 

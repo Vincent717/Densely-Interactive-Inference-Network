@@ -42,7 +42,7 @@ stemmer = nltk.SnowballStemmer('english')
 
 tt = nltk.tokenize.treebank.TreebankWordTokenizer()
 
-def load_nli_data(path, snli=False, shuffle = True):
+def load_nli_data(path, snli=False, shuffle=True, ratio=1):
     """
     Load MultiNLI or SNLI data.
     If the "snli" parameter is set to True, a genre label of snli will be assigned to the data. 
@@ -50,6 +50,8 @@ def load_nli_data(path, snli=False, shuffle = True):
     data = []
     with open(path) as f:
         for line in tqdm(f):
+            if random.random() < 1 - ratio:
+                continue
             loaded_example = json.loads(line)
             if loaded_example["gold_label"] not in LABEL_MAP:
                 continue

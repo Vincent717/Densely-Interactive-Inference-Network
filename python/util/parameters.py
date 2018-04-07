@@ -193,6 +193,7 @@ pa("--denp_enc_layers", type=int, default=1, help='num layers denpendency enc') 
 pa("--dependency_logit_func", type=str, default="sum", help='dependency logit function')
 pa("--dependency_hidden_size", type=int, default=32, help='dependency layer hidden size') ##
 pa("--use_more_interaction", action='store_true', help='add dependency information to training')
+pa("--data_ratio", type=float, default=1, help='data ratio') ##
 
 ## semantic loss
 pa("--semantic_loss", action='store_true', help='have semantic loss') ##
