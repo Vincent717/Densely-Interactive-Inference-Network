@@ -449,7 +449,7 @@ class modelClassifier:
                     self.completed = True
                     break
 
-    def classify(self, examples, return_logits=False):
+    def classify(self, examples, return_logits=False, file_header=''):
         # This classifies a list of examples
         if (test == True) or (self.completed == True):
             best_path = os.path.join(FIXED_PARAMETERS["ckpt_path"], modname) + ".ckpt_best"
@@ -511,25 +511,22 @@ class modelClassifier:
 
         if test == True:
             logger.Log("Generating Classification error analysis script")
-            correct_file = open(os.path.join(FIXED_PARAMETERS["log_path"], "correctly_classified_pairs.txt"), 'w')
-            wrong_file = open(os.path.join(FIXED_PARAMETERS["log_path"], "wrongly_classified_pairs.txt"), 'w')
-
+            fh = open(os.path.join(FIXED_PARAMETERS["log_path"], file_header+"answers.txt"), 'w')
             pred = np.argmax(logits[1:], axis=1)
+            if config.use_logic:
+                q_pred = np.argmax(qyxs[1:], axis=1)
             LABEL = ["entailment", "neutral", "contradiction"]
             for i in tqdm(range(pred.shape[0])):
-                if pred[i] == examples[i]["label"]:
-                    fh = correct_file
-                else:
-                    fh = wrong_file
                 fh.write("pairID: {}\n".format(examples[i]["pairID"].encode('utf-8')))
                 fh.write("S1: {}\n".format(examples[i]["sentence1"].encode('utf-8')))
                 fh.write("S2: {}\n".format(examples[i]["sentence2"].encode('utf-8')))
                 fh.write("Label:      {}\n".format(examples[i]['gold_label']))
                 fh.write("Prediction: {}\n".format(LABEL[pred[i]]))
                 fh.write("confidence: \nentailment: {}\nneutral: {}\ncontradiction: {}\n\n".format(logits[1+i, 0], logits[1+i,1], logits[1+i,2]))
-
-            correct_file.close()
-            wrong_file.close()
+                if use_logic:
+                    fh.write("Q_Prediction: {}\n".format(LABEL[q_pred[i]]))
+                    fh.write("Q_confidence: \nentailment: {}\nneutral: {}\ncontradiction: {}\n\n".format(qyxs[1+i, 0], qyxs[1+i,1], qyxs[1+i,2]))
+            fh.close()
 
         if config.use_logic:
             return genres, (np.argmax(logits[1:], axis=1), np.argmax(qyxs[1:], axis=1)), costs
@@ -631,7 +628,7 @@ elif test == False:
         dev_mismatched_path = os.path.join(FIXED_PARAMETERS["log_path"], "dev_mismatched_submission_{}.csv".format(modname))
         classifier.generate_predictions_with_id(dev_mismatched_path, dev_mismatched)
 
-else:
+else:   # test == True
     if config.training_completely_on_snli:
         logger.Log("Generating SNLI dev pred")
         dev_snli_path = os.path.join(FIXED_PARAMETERS["log_path"], "snli_dev_{}.csv".format(modname))
