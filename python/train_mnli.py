@@ -523,7 +523,7 @@ class modelClassifier:
                 fh.write("Label:      {}\n".format(examples[i]['gold_label']))
                 fh.write("Prediction: {}\n".format(LABEL[pred[i]]))
                 fh.write("confidence: \nentailment: {}\nneutral: {}\ncontradiction: {}\n\n".format(logits[1+i, 0], logits[1+i,1], logits[1+i,2]))
-                if use_logic:
+                if config.use_logic:
                     fh.write("Q_Prediction: {}\n".format(LABEL[q_pred[i]]))
                     fh.write("Q_confidence: \nentailment: {}\nneutral: {}\ncontradiction: {}\n\n".format(qyxs[1+i, 0], qyxs[1+i,1], qyxs[1+i,2]))
             fh.close()
