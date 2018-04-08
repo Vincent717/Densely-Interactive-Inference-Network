@@ -63,6 +63,7 @@ def load_nli_data(path, snli=False, shuffle=True, ratio=1):
         if shuffle:
             random.seed(1)
             random.shuffle(data)
+    print('dataset size : ', len(data))
     return data
 
 def load_nli_data_genre(path, genre, snli=True, shuffle = True):
@@ -921,10 +922,11 @@ def pretty_words(xs):
             res.append(x)
     return res
 
-with open('../data/ppdb/dic_ppdb_m_5.pkl', 'rb') as f:
-    pure_dippdb = f.read()
-dippdb = pickle.loads(pure_dippdb)
-del pure_dippdb
+
+#with open('../data/ppdb/dic_ppdb_m_5.pkl', 'rb') as f:
+#    pure_dippdb = f.read()
+#dippdb = pickle.loads(pure_dippdb)
+#del pure_dippdb
 
 def is_para(a,b):
     wa = ' '.join(a).strip()
